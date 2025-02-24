@@ -1,10 +1,12 @@
 mod app;
+mod keybindings;
 use app::App;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use keybindings::KeyBindings;
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -103,30 +105,23 @@ fn run_app<B: ratatui::backend::Backend>(
     mut app: App,
 ) -> io::Result<()> {
     let tick_rate = Duration::from_millis(250);
+    let keybinds = KeyBindings::default();
 
     loop {
         terminal.draw(|f| {
-            let size = f.area();
-
             if app.show_help {
-                let help_text = "
-                    Controls:
-                    h - Toggle help menu
-                    q - Quit
-                    Up/Down - Select signal
-                    Left/Right - Navigate timeline
-                    +/- - Zoom in/out
-                    ";
-                let help_paragraph = Paragraph::new(help_text)
-                    .block(Block::default().title("Help").borders(Borders::ALL));
-                f.render_widget(help_paragraph, size);
+                f.render_widget(
+                    Paragraph::new(keybinds.help_text)
+                        .block(Block::default().title("Help").borders(Borders::ALL)),
+                    f.area(),
+                );
                 return;
             }
 
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
-                .split(size);
+                .split(f.area());
 
             let title = format!(
                 "VCD Waveform Viewer | Time: {} to {} of {}",
@@ -185,14 +180,14 @@ fn run_app<B: ratatui::backend::Backend>(
         if event::poll(tick_rate)? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
-                    KeyCode::Char('q') => return Ok(()),
-                    KeyCode::Char('h') => app.show_help = !app.show_help,
-                    KeyCode::Down => {
+                    k if k == keybinds.quit => return Ok(()),
+                    k if k == keybinds.help => app.show_help = !app.show_help,
+                    k if k == keybinds.down => {
                         if !app.show_help {
                             app.selected_signal = (app.selected_signal + 1) % app.signals.len();
                         }
                     }
-                    KeyCode::Up => {
+                    k if k == keybinds.up => {
                         if !app.show_help {
                             if app.selected_signal > 0 {
                                 app.selected_signal -= 1;
@@ -201,23 +196,23 @@ fn run_app<B: ratatui::backend::Backend>(
                             }
                         }
                     }
-                    KeyCode::Left => {
+                    k if k == keybinds.left => {
                         if !app.show_help && app.time_offset > 0 {
                             app.time_offset = app.time_offset.saturating_sub(app.window_size / 4);
                         }
                     }
-                    KeyCode::Right => {
+                    k if k == keybinds.right => {
                         if !app.show_help && app.time_offset < app.max_time {
                             app.time_offset = (app.time_offset + app.window_size / 4)
                                 .min(app.max_time - app.window_size);
                         }
                     }
-                    KeyCode::Char('+') => {
+                    k if k == keybinds.zoom_in => {
                         if !app.show_help {
                             app.window_size = (app.window_size * 2).min(app.max_time);
                         }
                     }
-                    KeyCode::Char('-') => {
+                    k if k == keybinds.zoom_out => {
                         if !app.show_help {
                             app.window_size = (app.window_size / 2).max(10);
                         }
