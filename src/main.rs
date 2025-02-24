@@ -5,10 +5,12 @@ use crossterm::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
-    text::Span,
-    widgets::{Block, Borders, List, ListItem},
+    widgets::{
+        canvas::{Canvas, Line},
+        Block, Borders, List, ListItem,
+    },
     Terminal,
 };
 use std::{
@@ -19,10 +21,9 @@ use std::{
 };
 use vcd::{self, Command, Parser, Value};
 
-// App state
 struct App {
     signals: Vec<String>,
-    values: HashMap<String, Vec<(u64, Value)>>, // (timestamp, value) pairs for each signal
+    values: HashMap<String, Vec<(u64, Value)>>,
     selected_signal: usize,
     time_offset: u64,
     window_size: u64,
@@ -41,9 +42,7 @@ impl App {
         }
     }
 
-    // Add this function here
     fn generate_test_data(&mut self) {
-        // Create some test signals
         let test_signals = vec![
             "clk".to_string(),
             "reset".to_string(),
@@ -51,12 +50,10 @@ impl App {
             "data".to_string(),
         ];
 
-        // Generate test data
         for signal in test_signals {
             self.signals.push(signal.clone());
             let mut values = Vec::new();
 
-            // Generate 100 time units of data
             for t in 0..100 {
                 let value = match signal.as_str() {
                     "clk" => {
@@ -65,28 +62,28 @@ impl App {
                         } else {
                             Value::V0
                         }
-                    } // Clock toggles every time unit
+                    }
                     "reset" => {
                         if t < 10 {
                             Value::V1
                         } else {
                             Value::V0
                         }
-                    } // Reset active for first 10 cycles
+                    }
                     "data_valid" => {
                         if t % 10 == 0 {
                             Value::V1
                         } else {
                             Value::V0
                         }
-                    } // Data valid every 10 cycles
+                    }
                     "data" => {
                         if t % 20 < 10 {
                             Value::V1
                         } else {
                             Value::V0
                         }
-                    } // Data alternates every 10 cycles
+                    }
                     _ => Value::V0,
                 };
                 values.push((t as u64, value));
@@ -97,6 +94,7 @@ impl App {
         self.max_time = 100;
     }
 
+    #[allow(dead_code)]
     fn load_vcd(&mut self, filename: &str) -> Result<(), Box<dyn Error>> {
         let file = std::fs::File::open(filename)?;
         let reader = BufReader::new(file);
@@ -104,24 +102,18 @@ impl App {
 
         let header = parser.parse_header()?;
 
-        // Track current timestamp
         let mut current_time = 0u64;
-
         let mut id_to_signal = HashMap::new();
 
         for item in header.items {
             if let vcd::ScopeItem::Var(var) = item {
-                // Extract signal names from scopes
                 let signal_name = var.reference.clone();
                 self.signals.push(signal_name.clone());
                 self.values.insert(signal_name, Vec::new());
-
-                // Create a mapping from IdCode to signal name during header parsing
                 id_to_signal.insert(var.code.clone(), var.reference.clone());
             }
         }
 
-        // Parse value changes
         while let Some(command) = parser.next() {
             match command? {
                 Command::Timestamp(time) => {
@@ -129,7 +121,6 @@ impl App {
                     self.max_time = self.max_time.max(time);
                 }
                 Command::ChangeScalar(id, value) => {
-                    // Use our id_to_signal mapping
                     if let Some(signal_name) = id_to_signal.get(&id) {
                         if let Some(values) = self.values.get_mut(signal_name) {
                             values.push((current_time, value));
@@ -156,6 +147,86 @@ impl App {
     }
 }
 
+fn draw_waveform(
+    f: &mut ratatui::Frame,
+    area: Rect,
+    values: &[(u64, Value)],
+    time_offset: u64,
+    window_size: u64,
+    selected: bool,
+) {
+    let style = if selected {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default().fg(Color::White)
+    };
+
+    let canvas = Canvas::default()
+        .block(Block::default().borders(Borders::NONE))
+        .paint(|ctx| {
+            let width = area.width as f64;
+            let mut last_value = None;
+            let mut last_x = 0.0;
+
+            let time_to_x =
+                |t: u64| -> f64 { ((t - time_offset) as f64 / window_size as f64) * width };
+
+            for (t, v) in values {
+                if *t >= time_offset && *t <= time_offset + window_size {
+                    let x = time_to_x(*t);
+                    let y = match v {
+                        Value::V1 => 0.5,
+                        Value::V0 => 1.5,
+                        _ => 1.0,
+                    };
+
+                    if let Some((prev_y, prev_x)) = last_value {
+                        if prev_y != y {
+                            ctx.draw(&Line {
+                                x1: prev_x,
+                                y1: prev_y,
+                                x2: x,
+                                y2: prev_y,
+                                color: style.fg.unwrap_or(Color::White),
+                            });
+                            ctx.draw(&Line {
+                                x1: x,
+                                y1: prev_y,
+                                x2: x,
+                                y2: y,
+                                color: style.fg.unwrap_or(Color::White),
+                            });
+                        }
+                        ctx.draw(&Line {
+                            x1: last_x,
+                            y1: prev_y,
+                            x2: x,
+                            y2: prev_y,
+                            color: style.fg.unwrap_or(Color::White),
+                        });
+                    }
+
+                    last_value = Some((y, x));
+                    last_x = x;
+                }
+            }
+
+            if let Some((y, x)) = last_value {
+                ctx.draw(&Line {
+                    x1: x,
+                    y1: y,
+                    x2: width,
+                    y2: y,
+                    color: style.fg.unwrap_or(Color::White),
+                });
+            }
+        })
+        .x_bounds([0.0, area.width as f64])
+        .y_bounds([0.0, 2.0]);
+
+    f.render_widget(canvas, area);
+}
+
 fn run_app<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     mut app: App,
@@ -170,7 +241,6 @@ fn run_app<B: ratatui::backend::Backend>(
                 .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
                 .split(size);
 
-            // Title block with time information
             let title = format!(
                 "VCD Waveform Viewer | Time: {} to {} of {}",
                 app.time_offset,
@@ -180,41 +250,51 @@ fn run_app<B: ratatui::backend::Backend>(
             let title_block = Block::default().title(title).borders(Borders::ALL);
             f.render_widget(title_block, chunks[0]);
 
-            // Signal list
+            let main_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
+                .split(chunks[1]);
+
             let signals: Vec<ListItem> = app
                 .signals
                 .iter()
                 .enumerate()
                 .map(|(i, name)| {
-                    let style = if i == app.selected_signal {
+                    ListItem::new(name.as_str()).style(if i == app.selected_signal {
                         Style::default().fg(Color::Yellow)
                     } else {
                         Style::default()
-                    };
-
-                    // Get current value at time_offset
-                    let current_value = if let Some(values) = app.values.get(name) {
-                        let val = values
-                            .iter()
-                            .rev()
-                            .find(|(t, _)| *t <= app.time_offset)
-                            .map(|(_, v)| v.to_string())
-                            .unwrap_or_else(|| "x".to_string());
-                        format!("{}: {}", name, val)
-                    } else {
-                        name.clone()
-                    };
-
-                    ListItem::new(Span::styled(current_value, style))
+                    })
                 })
                 .collect();
 
             let signals_list = List::new(signals).block(Block::default().borders(Borders::ALL));
 
-            f.render_widget(signals_list, chunks[1]);
+            f.render_widget(signals_list, main_chunks[0]);
+
+            let waveform_area = main_chunks[1];
+            let waveform_height = 2;
+
+            for (i, signal) in app.signals.iter().enumerate() {
+                let area = Rect::new(
+                    waveform_area.x,
+                    waveform_area.y + (i as u16 * waveform_height),
+                    waveform_area.width,
+                    waveform_height,
+                );
+
+                let values = app.get_visible_values(signal);
+                draw_waveform(
+                    f,
+                    area,
+                    &values,
+                    app.time_offset,
+                    app.window_size,
+                    i == app.selected_signal,
+                );
+            }
         })?;
 
-        // Handle input
         if event::poll(tick_rate)? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
@@ -254,21 +334,17 @@ fn run_app<B: ratatui::backend::Backend>(
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Terminal setup
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // Create app and generate test data
     let mut app = App::new();
     app.generate_test_data();
 
-    // Run app
     let res = run_app(&mut terminal, app);
 
-    // Restore terminal
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
