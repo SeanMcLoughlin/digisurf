@@ -9,7 +9,7 @@ use ratatui::{
     style::{Color, Style},
     widgets::{
         canvas::{Canvas, Line},
-        Block, Borders, List, ListItem,
+        Block, Borders, List, ListItem, Paragraph,
     },
     Terminal,
 };
@@ -28,6 +28,7 @@ struct App {
     time_offset: u64,
     window_size: u64,
     max_time: u64,
+    show_help: bool,
 }
 
 impl App {
@@ -39,6 +40,7 @@ impl App {
             time_offset: 0,
             window_size: 50,
             max_time: 0,
+            show_help: false,
         }
     }
 
@@ -236,6 +238,22 @@ fn run_app<B: ratatui::backend::Backend>(
     loop {
         terminal.draw(|f| {
             let size = f.area();
+
+            if app.show_help {
+                let help_text = "
+                    Controls:
+                    h - Toggle help menu
+                    q - Quit
+                    Up/Down - Select signal
+                    Left/Right - Navigate timeline
+                    +/- - Zoom in/out
+                    ";
+                let help_paragraph = Paragraph::new(help_text)
+                    .block(Block::default().title("Help").borders(Borders::ALL));
+                f.render_widget(help_paragraph, size);
+                return;
+            }
+
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
@@ -299,32 +317,41 @@ fn run_app<B: ratatui::backend::Backend>(
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Char('h') => app.show_help = !app.show_help,
                     KeyCode::Down => {
-                        app.selected_signal = (app.selected_signal + 1) % app.signals.len();
+                        if !app.show_help {
+                            app.selected_signal = (app.selected_signal + 1) % app.signals.len();
+                        }
                     }
                     KeyCode::Up => {
-                        if app.selected_signal > 0 {
-                            app.selected_signal -= 1;
-                        } else {
-                            app.selected_signal = app.signals.len() - 1;
+                        if !app.show_help {
+                            if app.selected_signal > 0 {
+                                app.selected_signal -= 1;
+                            } else {
+                                app.selected_signal = app.signals.len() - 1;
+                            }
                         }
                     }
                     KeyCode::Left => {
-                        if app.time_offset > 0 {
+                        if !app.show_help && app.time_offset > 0 {
                             app.time_offset = app.time_offset.saturating_sub(app.window_size / 4);
                         }
                     }
                     KeyCode::Right => {
-                        if app.time_offset < app.max_time {
+                        if !app.show_help && app.time_offset < app.max_time {
                             app.time_offset = (app.time_offset + app.window_size / 4)
                                 .min(app.max_time - app.window_size);
                         }
                     }
                     KeyCode::Char('+') => {
-                        app.window_size = (app.window_size * 2).min(app.max_time);
+                        if !app.show_help {
+                            app.window_size = (app.window_size * 2).min(app.max_time);
+                        }
                     }
                     KeyCode::Char('-') => {
-                        app.window_size = (app.window_size / 2).max(10);
+                        if !app.show_help {
+                            app.window_size = (app.window_size / 2).max(10);
+                        }
                     }
                     _ => {}
                 }
