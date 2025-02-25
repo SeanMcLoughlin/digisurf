@@ -1,9 +1,10 @@
+use crate::model::types::WaveValue;
 use std::{collections::HashMap, error::Error, io::BufReader};
 use vcd::{Command, Parser, Value};
 
 pub struct App {
     pub signals: Vec<String>,
-    pub values: HashMap<String, Vec<(u64, Value)>>,
+    pub values: HashMap<String, Vec<(u64, WaveValue)>>,
     pub selected_signal: usize,
     pub time_offset: u64,
     pub window_size: u64,
@@ -40,33 +41,27 @@ impl App {
                 let value = match signal.as_str() {
                     "clk" => {
                         if t % 2 == 0 {
-                            Value::V1
+                            WaveValue::Binary(Value::V1)
                         } else {
-                            Value::V0
+                            WaveValue::Binary(Value::V0)
                         }
                     }
                     "reset" => {
                         if t < 10 {
-                            Value::V1
+                            WaveValue::Binary(Value::V1)
                         } else {
-                            Value::V0
+                            WaveValue::Binary(Value::V0)
                         }
                     }
                     "data_valid" => {
                         if t % 10 == 0 {
-                            Value::V1
+                            WaveValue::Binary(Value::V1)
                         } else {
-                            Value::V0
+                            WaveValue::Binary(Value::V0)
                         }
                     }
-                    "data" => {
-                        if t % 20 < 10 {
-                            Value::V1
-                        } else {
-                            Value::V0
-                        }
-                    }
-                    _ => Value::V0,
+                    "data" => WaveValue::Bus(format!("{:02X}", t % 256)),
+                    _ => WaveValue::Binary(Value::V0),
                 };
                 values.push((t as u64, value));
             }
@@ -86,13 +81,15 @@ impl App {
 
         let mut current_time = 0u64;
         let mut id_to_signal = HashMap::new();
+        let mut id_to_size = HashMap::new();
 
         for item in header.items {
             if let vcd::ScopeItem::Var(var) = item {
                 let signal_name = var.reference.clone();
                 self.signals.push(signal_name.clone());
-                self.values.insert(signal_name, Vec::new());
+                self.values.insert(signal_name.clone(), Vec::new());
                 id_to_signal.insert(var.code.clone(), var.reference.clone());
+                id_to_size.insert(var.code.clone(), var.size);
             }
         }
 
@@ -105,7 +102,25 @@ impl App {
                 Command::ChangeScalar(id, value) => {
                     if let Some(signal_name) = id_to_signal.get(&id) {
                         if let Some(values) = self.values.get_mut(signal_name) {
-                            values.push((current_time, value));
+                            values.push((current_time, WaveValue::Binary(value)));
+                        }
+                    }
+                }
+                Command::ChangeVector(id, value) => {
+                    if let Some(signal_name) = id_to_signal.get(&id) {
+                        if let Some(size) = id_to_size.get(&id) {
+                            if let Some(values) = self.values.get_mut(signal_name) {
+                                let hex_val = value.iter().fold(0u64, |acc, v| {
+                                    (acc << 1)
+                                        | match v {
+                                            Value::V1 => 1,
+                                            _ => 0,
+                                        }
+                                });
+                                let width = ((size + 3) / 4) as usize;
+                                let hex_str = format!("{:0width$X}", hex_val, width = width);
+                                values.push((current_time, WaveValue::Bus(hex_str)));
+                            }
                         }
                     }
                 }
@@ -116,7 +131,7 @@ impl App {
         Ok(())
     }
 
-    pub fn get_visible_values(&self, signal: &str) -> Vec<(u64, Value)> {
+    pub fn get_visible_values(&self, signal: &str) -> Vec<(u64, WaveValue)> {
         if let Some(values) = self.values.get(signal) {
             values
                 .iter()

@@ -9,7 +9,6 @@ pub struct KeyBindings {
     pub right: KeyCode,
     pub zoom_in: KeyCode,
     pub zoom_out: KeyCode,
-    pub help_text: &'static str,
 }
 
 impl Default for KeyBindings {
@@ -23,14 +22,6 @@ impl Default for KeyBindings {
             right: KeyCode::Right,
             zoom_in: KeyCode::Char('+'),
             zoom_out: KeyCode::Char('-'),
-            help_text: "
-                    Controls:
-                    h - Toggle help menu
-                    q - Quit
-                    Up/Down - Select signal
-                    Left/Right - Navigate timeline
-                    +/- - Zoom in/out
-                    ",
         }
     }
 }
