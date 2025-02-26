@@ -2,7 +2,7 @@ use crate::app::App;
 use crate::input::keybindings::KeyBindings;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph};
 
 pub fn draw_title(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
     let title = format!(
@@ -20,26 +20,40 @@ pub fn draw_title(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
 }
 
 pub fn draw_signal_list(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
-    let items: Vec<ListItem> = app
-        .signals
-        .iter()
-        .enumerate()
-        .map(|(idx, name)| {
-            let style = if idx == app.selected_signal {
-                Style::default().fg(Color::Yellow)
-            } else {
-                Style::default()
-            };
+    let waveform_height = 2; // This should match the value in draw_waveforms
 
-            ListItem::new(name.as_str()).style(style)
-        })
-        .collect();
+    // First draw the overall block
+    let block = Block::default().title("Signals").borders(Borders::ALL);
+    let inner_area = block.inner(area);
+    frame.render_widget(block, area);
 
-    let signals_list = List::new(items)
-        .block(Block::default().title("Signals").borders(Borders::ALL))
-        .highlight_style(Style::default().fg(Color::Yellow));
+    // Now manually render each signal name at the proper position
+    for (idx, name) in app.signals.iter().enumerate() {
+        let y_position = inner_area.y + (idx as u16 * waveform_height);
 
-    frame.render_widget(signals_list, area);
+        // Skip if we're outside the visible area
+        if y_position >= inner_area.bottom() {
+            break;
+        }
+
+        let style = if idx == app.selected_signal {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default()
+        };
+
+        // Calculate vertical center of the waveform area
+        let vertical_center = y_position + ((waveform_height / 2) - 1);
+
+        let signal_area = Rect::new(
+            inner_area.x,
+            vertical_center,
+            inner_area.width.min(name.len() as u16),
+            1,
+        );
+
+        frame.render_widget(Paragraph::new(name.as_str()).style(style), signal_area);
+    }
 }
 
 pub fn draw_help_screen(frame: &mut ratatui::Frame<'_>, keybinds: &KeyBindings) {
