@@ -7,7 +7,7 @@ A TUI signal waveform viewer.
 - [ ] Wrap the waveform in a chart and use the chart axes to show a scalable timescale view.
 - [x] Non-binary wave support (e.g. show values in hexadecimal instead of binary high/low)
 - [ ] Expand bus values in a tree structure in the signal list/waveform viewer
-- [ ] X and Z support
+- [x] X and Z support
 - [ ] Simple mouse events for clicking signal names to highlight them.
 - [ ] Markers
 - [ ] Zoom into selection of waves based on mouse click-and-drag selection

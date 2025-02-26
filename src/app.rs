@@ -33,6 +33,8 @@ impl App {
             "reset".to_string(),
             "data_valid".to_string(),
             "data".to_string(),
+            "tristate".to_string(),  // For Z states
+            "undefined".to_string(), // For X states
         ];
 
         for signal in test_signals {
@@ -63,6 +65,22 @@ impl App {
                         }
                     }
                     "data" => WaveValue::Bus(format!("{:02X}", t % 256)),
+                    "tristate" => {
+                        // Demonstrate high-impedance (Z) state every 3 cycles
+                        if t % 3 == 0 {
+                            WaveValue::Binary(Value::Z)
+                        } else {
+                            WaveValue::Binary(Value::V1)
+                        }
+                    }
+                    "undefined" => {
+                        // Demonstrate undefined (X) state every 5 cycles
+                        if t % 5 == 0 {
+                            WaveValue::Binary(Value::X)
+                        } else {
+                            WaveValue::Binary(Value::V0)
+                        }
+                    }
                     _ => WaveValue::Binary(Value::V0),
                 };
                 values.push((t as u64, value));

@@ -77,27 +77,29 @@ fn draw_binary_signal(
         .y_bounds([0.0, 2.0])
         .paint(|ctx| {
             let width = area.width as f64;
-            let mut last_value: Option<(f64, f64)> = None;
+            let mut last_value: Option<(f64, f64, Color)> = None;
 
             let time_to_x =
                 |t: u64| -> f64 { ((t - time_offset) as f64 / window_size as f64) * width };
 
             for (t, v) in values {
                 let x = time_to_x(*t);
-                let y = match v {
-                    WaveValue::Binary(vcd::Value::V1) => 0.5,
-                    WaveValue::Binary(vcd::Value::V0) => 1.5,
-                    _ => 1.0, // Middle for undefined values
+                let (y, color) = match v {
+                    WaveValue::Binary(vcd::Value::V1) => (0.5, style.fg.unwrap_or(Color::White)),
+                    WaveValue::Binary(vcd::Value::V0) => (1.5, style.fg.unwrap_or(Color::White)),
+                    WaveValue::Binary(vcd::Value::Z) => (1.0, Color::Magenta), // FIXME: I want orange.
+                    WaveValue::Binary(vcd::Value::X) => (1.0, Color::Red),
+                    _ => (1.0, style.fg.unwrap_or(Color::White)),
                 };
 
-                if let Some((prev_y, prev_x)) = last_value {
+                if let Some((prev_y, prev_x, prev_color)) = last_value {
                     // Draw horizontal line from last position
                     ctx.draw(&Line {
                         x1: prev_x,
                         y1: prev_y,
                         x2: x,
                         y2: prev_y,
-                        color: style.fg.unwrap_or(Color::White),
+                        color: prev_color,
                     });
 
                     // If value changed, draw vertical transition
@@ -107,22 +109,22 @@ fn draw_binary_signal(
                             y1: prev_y,
                             x2: x,
                             y2: y,
-                            color: style.fg.unwrap_or(Color::White),
+                            color: color,
                         });
                     }
                 }
 
-                last_value = Some((y, x));
+                last_value = Some((y, x, color));
             }
 
             // Draw remaining horizontal line to the end
-            if let Some((y, x)) = last_value {
+            if let Some((y, x, color)) = last_value {
                 ctx.draw(&Line {
                     x1: x,
                     y1: y,
                     x2: width,
                     y2: y,
-                    color: style.fg.unwrap_or(Color::White),
+                    color: color,
                 });
             }
         });
