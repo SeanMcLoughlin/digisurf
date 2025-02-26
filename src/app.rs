@@ -14,7 +14,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> App {
-        App {
+        let mut app = App {
             signals: Vec::new(),
             values: HashMap::new(),
             selected_signal: 0,
@@ -22,7 +22,9 @@ impl App {
             window_size: 50,
             max_time: 0,
             show_help: false,
-        }
+        };
+        app.generate_test_data();
+        app
     }
 
     pub fn generate_test_data(&mut self) {
