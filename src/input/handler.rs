@@ -43,12 +43,12 @@ fn handle_normal_mode(app: &mut App, key: KeyCode, keybinds: &KeyBindings) {
                     (app.time_offset + app.window_size / 4).min(app.max_time - app.window_size);
             }
         }
-        k if k == keybinds.zoom_in => {
+        k if k == keybinds.zoom_out => {
             if !app.show_help {
                 app.window_size = (app.window_size * 2).min(app.max_time);
             }
         }
-        k if k == keybinds.zoom_out => {
+        k if k == keybinds.zoom_in => {
             if !app.show_help {
                 app.window_size = (app.window_size / 2).max(10);
             }
