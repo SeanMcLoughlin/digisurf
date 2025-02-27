@@ -14,8 +14,8 @@ pub fn draw_waveforms(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
     }
 
     let waveform_height = 2;
-    let time_offset = app.time_offset;
-    let window_size = app.window_size;
+    let time_offset = app.waveform.time_start;
+    let window_size = app.waveform.time_range;
 
     for (i, signal_name) in app.signals.iter().enumerate() {
         let signal_area = Rect::new(
@@ -61,6 +61,74 @@ pub fn draw_waveforms(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
             );
         }
     }
+
+    draw_markers(frame, area, app);
+}
+
+fn draw_markers(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
+    let time_start = app.waveform.time_start;
+    let time_range = app.waveform.time_range;
+    let width = area.width as f64;
+
+    // Draw primary marker. Re-convert time position to x position within the waveform Rect
+    if let Some(marker_time) = app.waveform.primary_marker {
+        if marker_is_visible_at_current_zoom_level(marker_time, time_start, time_range) {
+            // Calculate x position
+            let x_ratio = (marker_time - time_start) as f64 / time_range as f64;
+            let x_pos = (x_ratio * width).round() as u16;
+
+            // Draw vertical line
+            let marker_line = Canvas::default()
+                .block(Block::default())
+                .x_bounds([0.0, width])
+                .y_bounds([0.0, area.height as f64])
+                .paint(|ctx| {
+                    ctx.draw(&Line {
+                        x1: x_pos as f64,
+                        y1: 0.0,
+                        x2: x_pos as f64,
+                        y2: area.height as f64,
+                        color: Color::Yellow,
+                    });
+                });
+
+            frame.render_widget(marker_line, area);
+        }
+    }
+
+    // Draw secondary marker. Re-convert time position to x position within the waveform Rect
+    if let Some(marker_time) = app.waveform.secondary_marker {
+        if marker_is_visible_at_current_zoom_level(marker_time, time_start, time_range) {
+            // Calculate x position
+            let x_ratio = (marker_time - time_start) as f64 / time_range as f64;
+            let x_pos = (x_ratio * width).round() as u16;
+
+            // Draw vertical line
+            let marker_line = Canvas::default()
+                .block(Block::default())
+                .x_bounds([0.0, width])
+                .y_bounds([0.0, area.height as f64])
+                .paint(|ctx| {
+                    ctx.draw(&Line {
+                        x1: x_pos as f64,
+                        y1: 0.0,
+                        x2: x_pos as f64,
+                        y2: area.height as f64,
+                        color: Color::White,
+                    });
+                });
+
+            frame.render_widget(marker_line, area);
+        }
+    }
+}
+
+fn marker_is_visible_at_current_zoom_level(
+    marker_time: u64,
+    time_start: u64,
+    time_range: u64,
+) -> bool {
+    marker_time >= time_start && marker_time <= time_start + time_range
 }
 
 fn draw_binary_signal(
@@ -79,15 +147,17 @@ fn draw_binary_signal(
             let width = area.width as f64;
             let mut last_value: Option<(f64, f64, Color)> = None;
 
-            let time_to_x =
-                |t: u64| -> f64 { ((t - time_offset) as f64 / window_size as f64) * width };
+            let time_to_x = |t: u64| -> f64 {
+                // Round to get precise pixel alignment
+                ((t - time_offset) as f64 / window_size as f64 * width).round()
+            };
 
             for (t, v) in values {
                 let x = time_to_x(*t);
                 let (y, color) = match v {
                     WaveValue::Binary(vcd::Value::V1) => (0.5, style.fg.unwrap_or(Color::White)),
                     WaveValue::Binary(vcd::Value::V0) => (1.5, style.fg.unwrap_or(Color::White)),
-                    WaveValue::Binary(vcd::Value::Z) => (1.0, Color::Magenta), // FIXME: I want orange.
+                    WaveValue::Binary(vcd::Value::Z) => (1.0, Color::Magenta),
                     WaveValue::Binary(vcd::Value::X) => (1.0, Color::Red),
                     _ => (1.0, style.fg.unwrap_or(Color::White)),
                 };
@@ -109,7 +179,7 @@ fn draw_binary_signal(
                             y1: prev_y,
                             x2: x,
                             y2: y,
-                            color: color,
+                            color,
                         });
                     }
                 }
@@ -124,7 +194,7 @@ fn draw_binary_signal(
                     y1: y,
                     x2: width,
                     y2: y,
-                    color: color,
+                    color,
                 });
             }
         });

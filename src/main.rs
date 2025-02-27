@@ -9,7 +9,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use input::{handler::handle_input, keybindings::KeyBindings};
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{backend::CrosstermBackend, layout::Rect, Terminal};
 use std::{error::Error, io, time::Duration};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -46,14 +46,36 @@ fn run_app<B: ratatui::backend::Backend>(
     let tick_rate = Duration::from_millis(250);
     let keybinds = KeyBindings::default();
 
+    // Keep track of the waveform area for mouse interaction
+    let mut waveform_area = Rect::default();
+
     loop {
-        terminal.draw(|f| ui::draw(&app, f))?;
+        terminal.draw(|f| {
+            let layout = ui::layout::create_layout(f.area());
+            waveform_area = layout.waveforms;
+            ui::draw(&app, f)
+        })?;
 
         if event::poll(tick_rate)? {
-            if let Event::Key(key) = event::read()? {
-                if !handle_input(&mut app, key.code, &keybinds) {
-                    return Ok(());
+            match event::read()? {
+                Event::Key(key) => {
+                    if !handle_input(&mut app, key.code, &keybinds) {
+                        return Ok(());
+                    }
                 }
+                Event::Mouse(mouse) => {
+                    if !input::handler::handle_mouse(
+                        &mut app,
+                        mouse.kind,
+                        mouse.column,
+                        mouse.row,
+                        mouse.modifiers,
+                        waveform_area,
+                    ) {
+                        return Ok(());
+                    }
+                }
+                _ => {}
             }
         }
     }

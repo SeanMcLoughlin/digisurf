@@ -1,4 +1,4 @@
-mod layout;
+pub mod layout;
 mod waveform;
 mod widgets;
 

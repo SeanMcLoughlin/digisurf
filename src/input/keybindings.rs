@@ -9,6 +9,8 @@ pub struct KeyBindings {
     pub right: KeyCode,
     pub zoom_in: KeyCode,
     pub zoom_out: KeyCode,
+    pub delete_primary_marker: KeyCode,
+    pub delete_secondary_marker: KeyCode,
 }
 
 impl Default for KeyBindings {
@@ -22,6 +24,8 @@ impl Default for KeyBindings {
             right: KeyCode::Right,
             zoom_in: KeyCode::Char('+'),
             zoom_out: KeyCode::Char('-'),
+            delete_primary_marker: KeyCode::Delete,
+            delete_secondary_marker: KeyCode::Backspace,
         }
     }
 }

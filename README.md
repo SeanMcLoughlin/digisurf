@@ -10,6 +10,8 @@ A TUI signal waveform viewer.
 - [x] X and Z support
 - [ ] Simple mouse events for clicking signal names to highlight them.
 - [ ] Markers
+  - [x] Markers on click events
+  - [ ] Saveable markers based on marker location of click event
 - [ ] Zoom into selection of waves based on mouse click-and-drag selection
 - [ ] Fuzzy search for signal names
 - [ ] FSDB parsing
