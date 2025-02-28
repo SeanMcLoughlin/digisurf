@@ -14,8 +14,8 @@ pub fn draw_waveforms(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
     }
 
     let waveform_height = 2;
-    let time_offset = app.waveform.time_start;
-    let window_size = app.waveform.time_range;
+    let time_start = app.waveform.time_start;
+    let time_range = app.waveform.time_range;
 
     for (i, signal_name) in app.signals.iter().enumerate() {
         let signal_area = Rect::new(
@@ -49,14 +49,21 @@ pub fn draw_waveforms(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
             .any(|(_, v)| matches!(v, WaveValue::Bus(_)));
 
         if is_bus {
-            draw_bus_signal(frame, signal_area, &visible_values, style);
+            draw_bus_signal(
+                frame,
+                signal_area,
+                &visible_values,
+                time_start,
+                time_range,
+                style,
+            );
         } else {
             draw_binary_signal(
                 frame,
                 signal_area,
                 &visible_values,
-                time_offset,
-                window_size,
+                time_start,
+                time_range,
                 style,
             );
         }
@@ -206,131 +213,57 @@ fn draw_bus_signal(
     frame: &mut ratatui::Frame<'_>,
     area: Rect,
     values: &[(u64, WaveValue)],
+    time_start: u64,
+    time_range: u64,
     style: Style,
 ) {
-    // Determine if we're too zoomed out to show details
-    let transitions_too_dense = if values.len() >= 2 {
-        // Check if average space between transitions is too small
-        let avg_space_per_transition = area.width as f64 / values.len() as f64;
-        avg_space_per_transition < 3.0 // If less than 3 pixels between transitions
-    } else {
-        false
-    };
+    // Calculate transition points
+    let width = area.width as f64;
+    let mut transition_points = Vec::new();
+
+    // Use the same time_to_x conversion as in draw_binary_signal
+    let time_to_x =
+        |t: u64| -> u16 { ((t - time_start) as f64 / time_range as f64 * width).round() as u16 };
+
+    for (_, (t, _)) in values.iter().enumerate() {
+        // Convert the time directly using the window
+        let x_pos = time_to_x(*t);
+        transition_points.push(x_pos);
+    }
+    transition_points.push(area.width);
 
     // Draw the bus signal with a straight line
     let canvas = Canvas::default()
         .block(Block::default())
-        .x_bounds([0.0, area.width as f64])
+        .x_bounds([0.0, width])
         .y_bounds([0.0, 2.0])
         .paint(|ctx| {
-            let width = area.width as f64;
+            // Draw a straight line in the middle
+            let y_middle = 1.0;
+            ctx.draw(&Line {
+                x1: 0.0,
+                y1: y_middle,
+                x2: width,
+                y2: y_middle,
+                color: style.fg.unwrap_or(Color::White),
+            });
 
-            if transitions_too_dense {
-                // Draw zigzag pattern for zoomed out bus signal
-                let zigzag_width = 3.0;
-                let zigzag_height = 0.3;
-                let y_middle = 1.0;
-                let mut x = 0.0;
+            // Draw vertical transitions at change points
+            for i in 0..transition_points.len() - 1 {
+                let x = transition_points[i] as f64;
 
-                while x < width {
-                    let x_end = (x + zigzag_width).min(width);
-                    ctx.draw(&Line {
-                        x1: x,
-                        y1: y_middle - zigzag_height,
-                        x2: x + zigzag_width / 2.0,
-                        y2: y_middle + zigzag_height,
-                        color: style.fg.unwrap_or(Color::White),
-                    });
-
-                    if x_end < width {
-                        ctx.draw(&Line {
-                            x1: x + zigzag_width / 2.0,
-                            y1: y_middle + zigzag_height,
-                            x2: x_end,
-                            y2: y_middle - zigzag_height,
-                            color: style.fg.unwrap_or(Color::White),
-                        });
-                    }
-
-                    x += zigzag_width;
-                }
-            } else {
-                // Draw a straight line in the middle
-                let y_middle = 1.0;
+                // Draw transition line
                 ctx.draw(&Line {
-                    x1: 0.0,
-                    y1: y_middle,
-                    x2: width,
-                    y2: y_middle,
+                    x1: x,
+                    y1: 0.5,
+                    x2: x,
+                    y2: 1.5,
                     color: style.fg.unwrap_or(Color::White),
                 });
-
-                // Draw vertical transitions at change points
-                let mut prev_x = None;
-
-                for (i, (t, _)) in values.iter().enumerate() {
-                    // Removed the "if i == 0 { continue; }" to draw the first transition too
-                    let x = if i == 0 {
-                        0.0 // First value starts at the beginning
-                    } else {
-                        ((*t - values[0].0) as f64
-                            / (values.last().unwrap().0 - values[0].0) as f64)
-                            * width
-                    };
-
-                    if let Some(px) = prev_x {
-                        if x > px + 2.0 {
-                            // Avoid drawing transitions too close
-                            ctx.draw(&Line {
-                                x1: x,
-                                y1: 0.5,
-                                x2: x,
-                                y2: 1.5,
-                                color: style.fg.unwrap_or(Color::White),
-                            });
-                        }
-                    } else {
-                        // Draw transition for the first value
-                        ctx.draw(&Line {
-                            x1: x,
-                            y1: 0.5,
-                            x2: x,
-                            y2: 1.5,
-                            color: style.fg.unwrap_or(Color::White),
-                        });
-                    }
-
-                    prev_x = Some(x);
-                }
             }
         });
 
     frame.render_widget(canvas, area);
-
-    // Only show values if not too zoomed out
-    if transitions_too_dense {
-        // Show a "zoomed out" indicator
-        let msg = "[zoomed out]";
-        let midpoint = (area.width - msg.len() as u16) / 2;
-        let label_area = Rect::new(area.x + midpoint, area.y, msg.len() as u16, 1);
-        frame.render_widget(Paragraph::new(msg).style(style), label_area);
-        return;
-    }
-
-    // Calculate transition points
-    let mut transition_points = Vec::new();
-    for (i, (t, _)) in values.iter().enumerate() {
-        if i == 0 {
-            transition_points.push(0);
-            continue;
-        }
-
-        let x_ratio =
-            (*t - values[0].0) as f64 / (values.last().unwrap().0 - values[0].0).max(1) as f64;
-        let x_pos = (x_ratio * area.width as f64) as u16;
-        transition_points.push(x_pos);
-    }
-    transition_points.push(area.width);
 
     // Draw bus value labels in the middle of segments
     for (i, (_, v)) in values.iter().enumerate() {
