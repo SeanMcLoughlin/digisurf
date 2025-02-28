@@ -155,8 +155,8 @@ fn draw_binary_signal(
             for (t, v) in values {
                 let x = time_to_x(*t);
                 let (y, color) = match v {
-                    WaveValue::Binary(vcd::Value::V1) => (0.5, style.fg.unwrap_or(Color::White)),
-                    WaveValue::Binary(vcd::Value::V0) => (1.5, style.fg.unwrap_or(Color::White)),
+                    WaveValue::Binary(vcd::Value::V1) => (1.5, style.fg.unwrap_or(Color::White)),
+                    WaveValue::Binary(vcd::Value::V0) => (0.5, style.fg.unwrap_or(Color::White)),
                     WaveValue::Binary(vcd::Value::Z) => (1.0, Color::Magenta),
                     WaveValue::Binary(vcd::Value::X) => (1.0, Color::Red),
                     _ => (1.0, style.fg.unwrap_or(Color::White)),
