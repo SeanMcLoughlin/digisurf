@@ -1,8 +1,9 @@
-use crate::input::KEYBINDINGS;
+use crate::{app::AppState, input::KEYBINDINGS};
 use crossterm::event::KeyCode;
 use ratatui::{
+    prelude::{Buffer, Rect},
     style::Style,
-    widgets::{Block, Borders, Paragraph, Widget},
+    widgets::{Block, Borders, Clear, Paragraph, StatefulWidget, Widget},
 };
 
 #[derive(Default, Copy, Clone)]
@@ -18,11 +19,17 @@ impl HelpMenuWidget {
     }
 }
 
-impl Widget for HelpMenuWidget {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
-    where
-        Self: Sized,
-    {
+impl StatefulWidget for HelpMenuWidget {
+    type State = AppState;
+
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        if !state.show_help {
+            return;
+        }
+
+        // Clear the entire screen first so only the help menu is visible
+        Clear.render(area, buf);
+
         let help_text = format!(
             "DigiSurf Keyboard Controls\n\n\
             {} - Toggle help menu\n\
@@ -46,9 +53,6 @@ impl Widget for HelpMenuWidget {
             self.key_to_string(&KEYBINDINGS.delete_primary_marker),
             self.key_to_string(&KEYBINDINGS.delete_secondary_marker)
         );
-
-        // Clear the entire screen first so only the help menu is visible
-        ratatui::widgets::Clear.render(area, buf);
 
         // Then, render the help menu
         Paragraph::new(help_text)

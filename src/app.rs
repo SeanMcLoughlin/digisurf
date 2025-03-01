@@ -351,11 +351,7 @@ impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         self.layout = create_layout(area);
 
-        if self.state.show_help {
-            self.help_menu.render(area, buf);
-            return;
-        }
-
+        self.help_menu.render(area, buf, &mut self.state);
         self.signal_list
             .render(self.layout.signal_list, buf, &mut self.state);
         self.waveform

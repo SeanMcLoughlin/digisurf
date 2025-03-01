@@ -294,6 +294,9 @@ impl StatefulWidget for WaveformWidget {
     type State = AppState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        if state.show_help {
+            return;
+        }
         if state.signals.is_empty() {
             return;
         }

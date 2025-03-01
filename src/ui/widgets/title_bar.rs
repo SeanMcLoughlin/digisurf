@@ -14,6 +14,9 @@ impl StatefulWidget for TitleBarWidget {
     type State = AppState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        if state.show_help {
+            return;
+        }
         let mut title = format!(
             "DigiSurf | Time: {} to {} of {}",
             state.time_start,

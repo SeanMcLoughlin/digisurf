@@ -13,6 +13,9 @@ impl StatefulWidget for SignalListWidget {
     type State = AppState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        if state.show_help {
+            return;
+        }
         // Draw the overall block
         let block = Block::default().title("Signals").borders(Borders::ALL);
         let inner_area = block.inner(area);
