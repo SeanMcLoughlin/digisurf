@@ -1,3 +1,5 @@
+use lazy_static::lazy_static;
+
 use crossterm::event::KeyCode;
 
 pub struct KeyBindings {
@@ -28,4 +30,9 @@ impl Default for KeyBindings {
             delete_secondary_marker: KeyCode::Backspace,
         }
     }
+}
+
+// This is a singleton for the default keybindings
+lazy_static! {
+    pub static ref KEYBINDINGS: KeyBindings = KeyBindings::default();
 }

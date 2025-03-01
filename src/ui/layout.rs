@@ -1,9 +1,10 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
+#[derive(Default)]
 pub struct AppLayout {
     pub title: Rect,
-    pub signals: Rect,
-    pub waveforms: Rect,
+    pub signal_list: Rect,
+    pub waveform: Rect,
 }
 
 pub fn create_layout(area: Rect) -> AppLayout {
@@ -19,12 +20,13 @@ pub fn create_layout(area: Rect) -> AppLayout {
 
     AppLayout {
         title: main_chunks[0],
-        signals: content_chunks[0],
-        waveforms: content_chunks[1],
+        signal_list: content_chunks[0],
+        waveform: content_chunks[1],
     }
 }
 
 // For dialogs or modal screens
+#[allow(dead_code)]
 pub fn create_centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
