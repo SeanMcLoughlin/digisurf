@@ -360,3 +360,20 @@ impl Widget for &mut App {
             .render(self.layout.title, buf, &mut self.state);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::App;
+    use insta::assert_snapshot;
+    use ratatui::{backend::TestBackend, Terminal};
+
+    #[test]
+    fn test_render_app() {
+        let mut app = App::default();
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+}
