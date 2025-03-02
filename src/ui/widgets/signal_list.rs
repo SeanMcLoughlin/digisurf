@@ -1,5 +1,5 @@
-use crate::app::AppState;
 use crate::model::types::WaveValue;
+use crate::state::AppState;
 use ratatui::prelude::{Buffer, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget, Widget};

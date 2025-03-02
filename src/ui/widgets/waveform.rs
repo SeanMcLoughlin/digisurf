@@ -1,4 +1,4 @@
-use crate::{app::AppState, constants::DRAG_COLOR, model::types::WaveValue};
+use crate::{constants::DRAG_COLOR, model::types::WaveValue, state::AppState};
 use ratatui::{
     layout::Rect,
     prelude::Buffer,

@@ -1,4 +1,4 @@
-use crate::{app::AppState, input::KEYBINDINGS};
+use crate::{input::KEYBINDINGS, state::AppState};
 use crossterm::event::KeyCode;
 use ratatui::{
     prelude::{Buffer, Rect},

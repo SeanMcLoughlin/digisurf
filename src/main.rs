@@ -2,6 +2,7 @@ mod app;
 mod constants;
 mod input;
 mod model;
+mod state;
 mod ui;
 use app::App;
 use crossterm::{

@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
 };
 
-use crate::app::AppState;
+use crate::state::AppState;
 
 #[derive(Default, Copy, Clone)]
 pub struct TitleBarWidget {}
