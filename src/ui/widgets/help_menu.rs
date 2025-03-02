@@ -38,6 +38,7 @@ impl StatefulWidget for HelpMenuWidget {
             {}/{} - Navigate timeline\n\
             {} - Zoom in\n\
             {} - Zoom out\n\
+            {} - Zoom full\n\
             Left Click - Place yellow marker\n\
             Shift+Left Click - Place white marker\n\
             Click and Drag - Zoom to selection\n\
@@ -51,6 +52,7 @@ impl StatefulWidget for HelpMenuWidget {
             self.key_to_string(&KEYBINDINGS.right),
             self.key_to_string(&KEYBINDINGS.zoom_in),
             self.key_to_string(&KEYBINDINGS.zoom_out),
+            self.key_to_string(&KEYBINDINGS.zoom_full),
             self.key_to_string(&KEYBINDINGS.delete_primary_marker),
             self.key_to_string(&KEYBINDINGS.delete_secondary_marker)
         );

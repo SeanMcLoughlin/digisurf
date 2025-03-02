@@ -379,6 +379,11 @@ impl App {
                     self.state.time_range = new_time_range;
                 }
             }
+            k if k == KEYBINDINGS.zoom_full => {
+                self.state.time_start = 0;
+                self.state.time_range = self.state.max_time;
+            }
+
             k if k == KEYBINDINGS.delete_primary_marker => {
                 self.state.primary_marker = None;
             }
