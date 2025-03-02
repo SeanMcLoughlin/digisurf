@@ -1,5 +1,5 @@
-use crate::model::types::WaveValue;
 use crate::state::AppState;
+use crate::types::WaveValue;
 use ratatui::prelude::{Buffer, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget, Widget};
@@ -13,9 +13,6 @@ impl StatefulWidget for SignalListWidget {
     type State = AppState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        if state.show_help {
-            return;
-        }
         // Draw the overall block
         let block = Block::default().title("Signals").borders(Borders::ALL);
         let inner_area = block.inner(area);

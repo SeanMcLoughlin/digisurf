@@ -1,10 +1,8 @@
+use crossterm::event::KeyCode;
 use lazy_static::lazy_static;
 
-use crossterm::event::KeyCode;
-
-pub struct KeyBindings {
-    pub quit: KeyCode,
-    pub help: KeyCode,
+pub struct NormalModeKeyBindings {
+    pub enter_command_mode: KeyCode,
     pub up: KeyCode,
     pub down: KeyCode,
     pub left: KeyCode,
@@ -16,11 +14,10 @@ pub struct KeyBindings {
     pub delete_secondary_marker: KeyCode,
 }
 
-impl Default for KeyBindings {
+impl Default for NormalModeKeyBindings {
     fn default() -> Self {
         Self {
-            quit: KeyCode::Char('q'),
-            help: KeyCode::Char('h'),
+            enter_command_mode: KeyCode::Char(':'),
             up: KeyCode::Up,
             down: KeyCode::Down,
             left: KeyCode::Left,
@@ -34,7 +31,22 @@ impl Default for KeyBindings {
     }
 }
 
-// This is a singleton for the default keybindings
+pub struct CommandModeKeyBindings {
+    pub enter_normal_mode: KeyCode,
+    pub execute_command: KeyCode,
+}
+
+impl Default for CommandModeKeyBindings {
+    fn default() -> Self {
+        Self {
+            enter_normal_mode: KeyCode::Esc,
+            execute_command: KeyCode::Enter,
+        }
+    }
+}
+
+// Singletons for keybindings while in different modes.
 lazy_static! {
-    pub static ref KEYBINDINGS: KeyBindings = KeyBindings::default();
+    pub static ref NORMAL_KEYBINDINGS: NormalModeKeyBindings = NormalModeKeyBindings::default();
+    pub static ref COMMAND_KEYBINDINGS: CommandModeKeyBindings = CommandModeKeyBindings::default();
 }

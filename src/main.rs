@@ -1,8 +1,10 @@
 mod app;
+mod command_mode;
+mod commands;
 mod constants;
 mod input;
-mod model;
 mod state;
+mod types;
 mod ui;
 use app::App;
 use crossterm::{

@@ -1,14 +1,14 @@
+use crate::types::AppMode;
+use crate::types::WaveValue;
 use std::collections::HashMap;
-
-use crate::model::types::WaveValue;
 
 #[derive(Default)]
 pub struct AppState {
     /// Flag indicating whether the application should exit.
     pub exit: bool,
 
-    /// Flag indicating whether the help screen should be shown.
-    pub show_help: bool,
+    /// The mode the application is currently in.
+    pub mode: AppMode,
 
     /// Map of signal names to their values at each time step.
     pub values: HashMap<String, Vec<(u64, WaveValue)>>,
@@ -45,6 +45,15 @@ pub struct AppState {
 
     /// Flag used to differentiate between a drag operation and a potential click
     pub is_dragging: bool,
+
+    /// Current command text being entered in the command mode field
+    pub currently_typed_text_in_bottom_text_box: String,
+
+    /// Flag indicating that the help menu is currently being displayed
+    pub show_help: bool,
+
+    /// Current scroll position in the help menu
+    pub help_menu_scroll: usize,
 }
 
 impl AppState {

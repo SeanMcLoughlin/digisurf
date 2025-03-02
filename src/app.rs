@@ -1,20 +1,26 @@
 use crate::{
-    constants::{DRAG_DETECTED_THRESHOLD_PIXELS, DRAG_STARTED_THRESHOLD_PIXELS},
-    input::KEYBINDINGS,
-    model::types::WaveValue,
+    command_mode::CommandModeWidget,
+    commands, constants,
+    input::{COMMAND_KEYBINDINGS, NORMAL_KEYBINDINGS},
     state::AppState,
+    types::{AppMode, WaveValue},
     ui::{
         layout::{create_layout, AppLayout},
         widgets::{
-            help_menu::HelpMenuWidget, signal_list::SignalListWidget, title_bar::TitleBarWidget,
-            waveform::WaveformWidget,
+            bottom_text_box::BottomTextBoxWidget, help_menu::HelpMenuWidget,
+            signal_list::SignalListWidget, title_bar::TitleBarWidget, waveform::WaveformWidget,
         },
     },
 };
 use crossterm::event::{
     self, Event, KeyCode, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
-use ratatui::{layout::Rect, prelude::*, widgets::Widget, DefaultTerminal};
+use ratatui::{
+    layout::Rect,
+    prelude::*,
+    widgets::{Paragraph, Widget},
+    DefaultTerminal,
+};
 use std::{error::Error, time::Duration};
 use vcd::Value;
 
@@ -25,6 +31,10 @@ pub struct App {
     pub help_menu: HelpMenuWidget,
     pub waveform: WaveformWidget,
     pub title_bar: TitleBarWidget,
+    pub command_input: BottomTextBoxWidget,
+    pub command_result: Option<(String, bool)>, // (message, is_error)
+    pub command_result_time: Option<std::time::Instant>,
+    pub command_mode: CommandModeWidget<AppState>,
 }
 
 impl Default for App {
@@ -36,8 +46,13 @@ impl Default for App {
             help_menu: HelpMenuWidget::default(),
             waveform: WaveformWidget::default(),
             title_bar: TitleBarWidget::default(),
+            command_input: BottomTextBoxWidget::default(),
+            command_result: None,
+            command_result_time: None,
+            command_mode: CommandModeWidget::new(),
         };
         app.generate_test_data();
+        app.register_commands();
         app
     }
 }
@@ -47,35 +62,102 @@ impl App {
         let tick_rate = Duration::from_millis(250);
         while !self.state.exit {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
+
             if event::poll(tick_rate)? {
                 match event::read()? {
-                    Event::Key(key) => self.handle_input(key.code),
+                    Event::Key(key) => {
+                        if self.state.show_help {
+                            match key.code {
+                                KeyCode::Esc => {
+                                    self.state.show_help = false;
+                                    self.state.help_menu_scroll = 0;
+                                }
+                                KeyCode::Up => {
+                                    if self.state.help_menu_scroll > 0 {
+                                        self.state.help_menu_scroll -= 1;
+                                    }
+                                }
+                                KeyCode::Down => {
+                                    self.state.help_menu_scroll += 1;
+                                }
+                                _ => {}
+                            }
+                        } else if self.state.mode == AppMode::Command {
+                            self.handle_command_input(key.code);
+                        } else {
+                            self.handle_input(key.code);
+                        }
+                    }
                     Event::Mouse(mouse) => self.handle_mouse(mouse),
                     _ => {}
+                }
+            } else {
+                // Check if command result should be hidden
+                if let Some(time) = self.command_result_time {
+                    if time.elapsed().as_secs() >= constants::COMMAND_RESULT_HIDE_THRESHOLD_SECONDS
+                    {
+                        self.command_result = None;
+                        self.command_result_time = None;
+                    }
                 }
             }
         }
         Ok(())
     }
 
-    pub fn handle_input(&mut self, key: KeyCode) {
-        if key == KEYBINDINGS.quit {
-            self.state.exit = true;
-            return;
-        }
+    fn register_commands(&mut self) {
+        commands::register_all_commands(&mut self.command_mode);
+    }
 
-        if key == KEYBINDINGS.help {
-            self.state.show_help = !self.state.show_help;
-        } else if !self.state.show_help {
-            self.handle_normal_mode(key);
+    pub fn handle_command_input(&mut self, key: KeyCode) {
+        match key {
+            k if k == COMMAND_KEYBINDINGS.enter_normal_mode => {
+                self.state.mode = AppMode::Normal;
+                self.state.currently_typed_text_in_bottom_text_box.clear();
+            }
+            k if k == COMMAND_KEYBINDINGS.execute_command => {
+                let command = self.state.currently_typed_text_in_bottom_text_box.clone();
+                let result = self
+                    .command_mode
+                    .parser()
+                    .execute(&command, &mut self.state);
+
+                match result {
+                    Ok(msg) => {
+                        self.command_result = Some((msg, false));
+                    }
+                    Err(err) => {
+                        self.command_result = Some((err, true));
+                    }
+                }
+                self.command_result_time = Some(std::time::Instant::now());
+                self.state.mode = AppMode::Normal;
+                self.state.currently_typed_text_in_bottom_text_box.clear();
+            }
+            KeyCode::Backspace => {
+                self.state.currently_typed_text_in_bottom_text_box.pop();
+            }
+            KeyCode::Char(c) => {
+                self.state.currently_typed_text_in_bottom_text_box.push(c);
+            }
+            _ => {}
+        }
+    }
+
+    pub fn handle_input(&mut self, key: KeyCode) {
+        if self.state.mode == AppMode::Command {
+            self.handle_command_input(key);
+        } else {
+            if key == NORMAL_KEYBINDINGS.enter_command_mode {
+                self.state.mode = AppMode::Command;
+                self.state.currently_typed_text_in_bottom_text_box.clear();
+            } else {
+                self.handle_normal_mode(key);
+            }
         }
     }
 
     pub fn handle_mouse(&mut self, mouse: MouseEvent) {
-        if self.state.show_help {
-            return;
-        }
-
         // Check if click is within waveform area
         if mouse.column >= self.layout.waveform.x
             && mouse.column <= self.layout.waveform.right()
@@ -111,7 +193,7 @@ impl App {
                             // Detect if we've moved enough to consider this a drag
                             if !self.state.is_dragging
                                 && (start_x as i32 - column_in_waveform as i32).abs()
-                                    >= DRAG_DETECTED_THRESHOLD_PIXELS
+                                    >= constants::DRAG_DETECTED_THRESHOLD_PIXELS
                             {
                                 self.state.is_dragging = true;
                             }
@@ -128,7 +210,8 @@ impl App {
                         if self.state.is_dragging {
                             // This was a drag operation - zoom to selection
                             // Only zoom if dragged a minimum distance
-                            if (start_x as i32 - end_x as i32).abs() > DRAG_STARTED_THRESHOLD_PIXELS
+                            if (start_x as i32 - end_x as i32).abs()
+                                > constants::DRAG_STARTED_THRESHOLD_PIXELS
                             {
                                 // Order the times correctly
                                 let (min_time, max_time) = if start_time < end_time {
@@ -165,89 +248,81 @@ impl App {
 
     fn handle_normal_mode(&mut self, key: KeyCode) {
         match key {
-            k if k == KEYBINDINGS.down => {
-                if !self.state.show_help {
-                    self.state.selected_signal =
-                        (self.state.selected_signal + 1) % self.state.signals.len();
+            k if k == NORMAL_KEYBINDINGS.down => {
+                self.state.selected_signal =
+                    (self.state.selected_signal + 1) % self.state.signals.len();
+            }
+            k if k == NORMAL_KEYBINDINGS.up => {
+                if self.state.selected_signal > 0 {
+                    self.state.selected_signal -= 1;
+                } else {
+                    self.state.selected_signal = self.state.signals.len() - 1;
                 }
             }
-            k if k == KEYBINDINGS.up => {
-                if !self.state.show_help {
-                    if self.state.selected_signal > 0 {
-                        self.state.selected_signal -= 1;
-                    } else {
-                        self.state.selected_signal = self.state.signals.len() - 1;
-                    }
-                }
-            }
-            k if k == KEYBINDINGS.left => {
-                if !self.state.show_help && self.state.time_start > 0 {
+            k if k == NORMAL_KEYBINDINGS.left => {
+                if self.state.time_start > 0 {
                     self.state.time_start = self
                         .state
                         .time_start
                         .saturating_sub(self.state.time_range / 4);
                 }
             }
-            k if k == KEYBINDINGS.right => {
-                if !self.state.show_help && self.state.time_start < self.state.max_time {
+            k if k == NORMAL_KEYBINDINGS.right => {
+                if self.state.time_start < self.state.max_time {
                     // Ensure the waveform view doesn't go beyond max_time
                     let max_start = self.state.max_time.saturating_sub(self.state.time_range);
                     self.state.time_start =
                         (self.state.time_start + self.state.time_range / 4).min(max_start);
                 }
             }
-            k if k == KEYBINDINGS.zoom_out => {
-                if !self.state.show_help {
-                    // Calculate the new time range, doubling but capped at max_time
-                    let new_time_range = (self.state.time_range * 2).min(self.state.max_time);
+            k if k == NORMAL_KEYBINDINGS.zoom_out => {
+                // Calculate the new time range, doubling but capped at max_time
+                let new_time_range = (self.state.time_range * 2).min(self.state.max_time);
 
-                    // Calculate center point of current view
-                    let center = self.state.time_start + (self.state.time_range / 2);
+                // Calculate center point of current view
+                let center = self.state.time_start + (self.state.time_range / 2);
 
-                    // Calculate new start time, keeping the center point if possible
-                    let half_new_range = new_time_range / 2;
-                    let new_start = if center > half_new_range {
-                        center.saturating_sub(half_new_range)
-                    } else {
-                        0
-                    };
+                // Calculate new start time, keeping the center point if possible
+                let half_new_range = new_time_range / 2;
+                let new_start = if center > half_new_range {
+                    center.saturating_sub(half_new_range)
+                } else {
+                    0
+                };
 
-                    // Make sure the end time (start + range) doesn't exceed max_time
-                    let adjusted_start = if new_start + new_time_range > self.state.max_time {
-                        self.state.max_time.saturating_sub(new_time_range)
-                    } else {
-                        new_start
-                    };
+                // Make sure the end time (start + range) doesn't exceed max_time
+                let adjusted_start = if new_start + new_time_range > self.state.max_time {
+                    self.state.max_time.saturating_sub(new_time_range)
+                } else {
+                    new_start
+                };
 
-                    self.state.time_start = adjusted_start;
-                    self.state.time_range = new_time_range;
-                }
+                self.state.time_start = adjusted_start;
+                self.state.time_range = new_time_range;
             }
-            k if k == KEYBINDINGS.zoom_in => {
-                if !self.state.show_help {
-                    // Calculate center point of current view
-                    let center = self.state.time_start + (self.state.time_range / 2);
+            k if k == NORMAL_KEYBINDINGS.zoom_in => {
+                // Calculate center point of current view
+                let center = self.state.time_start + (self.state.time_range / 2);
 
-                    // Calculate new time range, halving but with a minimum
-                    let new_time_range = (self.state.time_range / 2).max(10);
+                // Calculate new time range, halving but with a minimum
+                let new_time_range = (self.state.time_range / 2).max(10);
 
-                    // Calculate new start time, trying to keep the center point
-                    let half_new_range = new_time_range / 2;
-                    let new_start = center.saturating_sub(half_new_range);
+                // Calculate new start time, trying to keep the center point
+                let half_new_range = new_time_range / 2;
+                let new_start = center.saturating_sub(half_new_range);
 
-                    self.state.time_start = new_start;
-                    self.state.time_range = new_time_range;
-                }
+                self.state.time_start = new_start;
+                self.state.time_range = new_time_range;
             }
-            k if k == KEYBINDINGS.zoom_full => {
+            k if k == NORMAL_KEYBINDINGS.zoom_full => {
                 self.state.time_start = 0;
                 self.state.time_range = self.state.max_time;
             }
 
-            k if k == KEYBINDINGS.delete_primary_marker => {
+            k if k == NORMAL_KEYBINDINGS.delete_primary_marker => {
                 self.state.primary_marker = None;
             }
-            k if k == KEYBINDINGS.delete_secondary_marker => {
+            k if k == NORMAL_KEYBINDINGS.delete_secondary_marker => {
                 self.state.secondary_marker = None;
             }
 
@@ -324,13 +399,41 @@ impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         self.layout = create_layout(area);
 
-        self.help_menu.render(area, buf, &mut self.state);
+        if self.state.show_help {
+            self.help_menu.render(area, buf, &mut self.state);
+            return; // Don't render the rest of the UI when help is shown
+        }
+
+        // Regular UI rendering
         self.signal_list
             .render(self.layout.signal_list, buf, &mut self.state);
         self.waveform
             .render(self.layout.waveform, buf, &mut self.state);
         self.title_bar
             .render(self.layout.title, buf, &mut self.state);
+        self.command_input
+            .render(self.layout.command_bar, buf, &mut self.state);
+
+        // Command result message if there is one
+        if let Some((msg, is_error)) = &self.command_result {
+            let status_style = if *is_error {
+                Style::default().fg(Color::Red)
+            } else {
+                Style::default().fg(Color::Green)
+            };
+
+            // Create a temporary area just above the command bar for the result message
+            let msg_area = Rect::new(
+                self.layout.command_bar.x,
+                self.layout.command_bar.y.saturating_sub(1),
+                self.layout.command_bar.width.min(msg.len() as u16),
+                1,
+            );
+
+            Paragraph::new(msg.clone())
+                .style(status_style)
+                .render(msg_area, buf);
+        }
     }
 }
 
