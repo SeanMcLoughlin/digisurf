@@ -12,9 +12,10 @@ A TUI signal waveform viewer.
 - [ ] Markers
   - [x] Markers on click events
   - [ ] Saveable markers based on marker location of click event
-- [ ] Zoom into selection of waves based on mouse click-and-drag selection
+- [x] Zoom into selection of waves based on mouse click-and-drag selection
 - [ ] Fuzzy search for signal names
-- [ ] FSDB parsing
+- [-] FSDB parsing
+  - FSDB is a proprietary format by Synopsys and you cannot use their FFT C API unless you have a license agreement with them, which I do not.
 - [ ] Wave DB file streaming for performance
 - [ ] Vim-like command mode (or at least better keybindings, depends on how complex this tool will get)
 - [ ] Color picker for each wave+signal, marker, etc.

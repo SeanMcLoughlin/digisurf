@@ -40,6 +40,7 @@ impl StatefulWidget for HelpMenuWidget {
             {} - Zoom out\n\
             Left Click - Place yellow marker\n\
             Shift+Left Click - Place white marker\n\
+            Click and Drag - Zoom to selection\n\
             {} - Remove primary marker\n\
             {} - Remove secondary marker",
             self.key_to_string(&KEYBINDINGS.help),

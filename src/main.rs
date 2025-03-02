@@ -1,4 +1,5 @@
 mod app;
+mod constants;
 mod input;
 mod model;
 mod ui;

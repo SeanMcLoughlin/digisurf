@@ -1,4 +1,4 @@
-use crate::{app::AppState, model::types::WaveValue};
+use crate::{app::AppState, constants::DRAG_COLOR, model::types::WaveValue};
 use ratatui::{
     layout::Rect,
     prelude::Buffer,
@@ -285,6 +285,31 @@ impl WaveformWidget {
         }
     }
 
+    pub fn draw_drag_selection(&self, buf: &mut Buffer, area: Rect, state: &AppState) {
+        if state.is_dragging {
+            if let (Some((start_x, _)), Some((current_x, _))) =
+                (state.drag_start, state.drag_current)
+            {
+                // Determine selection box coordinates
+                let left = start_x.min(current_x);
+                let right = start_x.max(current_x);
+                let width = right - left;
+
+                // Draw selection box if the user has dragged a minimum distance
+                if width > 1 {
+                    let selection_area = Rect::new(area.x + left, area.y, width, area.height);
+
+                    // Draw a semi-transparent selection box
+                    for y in selection_area.top()..selection_area.bottom() {
+                        for x in selection_area.left()..selection_area.right() {
+                            buf[(x, y)].set_bg(DRAG_COLOR);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn is_marker_visible(&self, marker_time: u64, time_start: u64, time_range: u64) -> bool {
         marker_time >= time_start && marker_time <= time_start + time_range
     }
@@ -303,5 +328,6 @@ impl StatefulWidget for WaveformWidget {
 
         self.draw_signals(buf, area, &state);
         self.draw_markers(buf, area, &state);
+        self.draw_drag_selection(buf, area, &state);
     }
 }

@@ -1,4 +1,5 @@
 use crate::{
+    constants::{DRAG_DETECTED_THRESHOLD_PIXELS, DRAG_STARTED_THRESHOLD_PIXELS},
     input::KEYBINDINGS,
     model::types::WaveValue,
     ui::{
@@ -50,9 +51,24 @@ pub struct AppState {
 
     /// Secondary marker position in time step units.
     pub secondary_marker: Option<u64>,
+
+    /// Is Some(Screen X coordinate, Time Step) if starting dragging for zoom selection
+    pub drag_start: Option<(u16, u64)>,
+
+    /// Is Some(Screen X coordinate, Time Step) if currently dragging for zoom selection
+    pub drag_current: Option<(u16, u64)>,
+
+    /// Flag used to differentiate between a drag operation and a potential click
+    pub is_dragging: bool,
 }
 
 impl AppState {
+    fn new() -> Self {
+        let mut app_state = AppState::default();
+        app_state.time_range = 50;
+        app_state
+    }
+
     pub fn set_primary_marker(&mut self, x_pos: u16, window_width: u16) {
         self.primary_marker = Some(self.screen_pos_to_time(x_pos, window_width));
     }
@@ -140,12 +156,6 @@ impl AppState {
             Vec::new()
         }
     }
-
-    fn new() -> Self {
-        let mut app_state = AppState::default();
-        app_state.time_range = 50;
-        app_state
-    }
 }
 
 pub struct App {
@@ -218,15 +228,78 @@ impl App {
             match mouse.kind {
                 MouseEventKind::Down(MouseButton::Left) => {
                     if mouse.modifiers.contains(KeyModifiers::SHIFT) {
+                        // Shift is still used for secondary marker
                         self.state
                             .set_secondary_marker(column_in_waveform, self.layout.waveform.width);
                     } else {
-                        self.state
-                            .set_primary_marker(column_in_waveform, self.layout.waveform.width);
+                        // Start potential drag or click - we don't know which yet
+                        let time = self
+                            .state
+                            .screen_pos_to_time(column_in_waveform, self.layout.waveform.width);
+                        self.state.drag_start = Some((column_in_waveform, time));
+                        self.state.drag_current = Some((column_in_waveform, time));
+                        self.state.is_dragging = false; // Not dragging yet
                     }
+                }
+                MouseEventKind::Drag(MouseButton::Left) => {
+                    if self.state.drag_start.is_some() {
+                        let time = self
+                            .state
+                            .screen_pos_to_time(column_in_waveform, self.layout.waveform.width);
+
+                        if let Some((start_x, _)) = self.state.drag_start {
+                            // Detect if we've moved enough to consider this a drag
+                            if !self.state.is_dragging
+                                && (start_x as i32 - column_in_waveform as i32).abs()
+                                    >= DRAG_DETECTED_THRESHOLD_PIXELS
+                            {
+                                self.state.is_dragging = true;
+                            }
+                        }
+
+                        // Update current position regardless
+                        self.state.drag_current = Some((column_in_waveform, time));
+                    }
+                }
+                MouseEventKind::Up(MouseButton::Left) => {
+                    if let (Some((start_x, start_time)), Some((end_x, end_time))) =
+                        (self.state.drag_start, self.state.drag_current)
+                    {
+                        if self.state.is_dragging {
+                            // This was a drag operation - zoom to selection
+                            // Only zoom if dragged a minimum distance
+                            if (start_x as i32 - end_x as i32).abs() > DRAG_STARTED_THRESHOLD_PIXELS
+                            {
+                                // Order the times correctly
+                                let (min_time, max_time) = if start_time < end_time {
+                                    (start_time, end_time)
+                                } else {
+                                    (end_time, start_time)
+                                };
+
+                                // Set the new zoom area
+                                self.state.time_start = min_time;
+                                self.state.time_range = max_time.saturating_sub(min_time).max(1);
+                            }
+                        } else {
+                            // This was a click (not a drag) - set marker
+                            self.state
+                                .set_primary_marker(start_x, self.layout.waveform.width);
+                        }
+                    }
+
+                    // Reset drag state
+                    self.state.drag_start = None;
+                    self.state.drag_current = None;
+                    self.state.is_dragging = false;
                 }
                 _ => {}
             }
+        } else {
+            // Clear drag state if clicked outside the waveform area
+            self.state.drag_start = None;
+            self.state.drag_current = None;
+            self.state.is_dragging = false;
         }
     }
 
@@ -257,18 +330,53 @@ impl App {
             }
             k if k == KEYBINDINGS.right => {
                 if !self.state.show_help && self.state.time_start < self.state.max_time {
-                    self.state.time_start = (self.state.time_start + self.state.time_range / 4)
-                        .min(self.state.max_time - self.state.time_range);
+                    // Ensure the waveform view doesn't go beyond max_time
+                    let max_start = self.state.max_time.saturating_sub(self.state.time_range);
+                    self.state.time_start =
+                        (self.state.time_start + self.state.time_range / 4).min(max_start);
                 }
             }
             k if k == KEYBINDINGS.zoom_out => {
                 if !self.state.show_help {
-                    self.state.time_range = (self.state.time_range * 2).min(self.state.max_time);
+                    // Calculate the new time range, doubling but capped at max_time
+                    let new_time_range = (self.state.time_range * 2).min(self.state.max_time);
+
+                    // Calculate center point of current view
+                    let center = self.state.time_start + (self.state.time_range / 2);
+
+                    // Calculate new start time, keeping the center point if possible
+                    let half_new_range = new_time_range / 2;
+                    let new_start = if center > half_new_range {
+                        center.saturating_sub(half_new_range)
+                    } else {
+                        0
+                    };
+
+                    // Make sure the end time (start + range) doesn't exceed max_time
+                    let adjusted_start = if new_start + new_time_range > self.state.max_time {
+                        self.state.max_time.saturating_sub(new_time_range)
+                    } else {
+                        new_start
+                    };
+
+                    self.state.time_start = adjusted_start;
+                    self.state.time_range = new_time_range;
                 }
             }
             k if k == KEYBINDINGS.zoom_in => {
                 if !self.state.show_help {
-                    self.state.time_range = (self.state.time_range / 2).max(10);
+                    // Calculate center point of current view
+                    let center = self.state.time_start + (self.state.time_range / 2);
+
+                    // Calculate new time range, halving but with a minimum
+                    let new_time_range = (self.state.time_range / 2).max(10);
+
+                    // Calculate new start time, trying to keep the center point
+                    let half_new_range = new_time_range / 2;
+                    let new_start = center.saturating_sub(half_new_range);
+
+                    self.state.time_start = new_start;
+                    self.state.time_range = new_time_range;
                 }
             }
             k if k == KEYBINDINGS.delete_primary_marker => {
