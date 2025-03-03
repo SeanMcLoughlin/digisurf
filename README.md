@@ -17,7 +17,9 @@ A TUI signal waveform viewer.
 - [-] FSDB parsing
   - FSDB is a proprietary format by Synopsys and you cannot use their FFT C API unless you have a license agreement with them, which I do not.
 - [ ] Wave DB file streaming for performance
-- [x] Vim-like command mode (or at least better keybindings, depends on how complex this tool will get)
+- [x] Command mode
+  - [ ] Tab complete
+  - [ ] Up arrow for previous commands
 - [ ] Color picker for each wave+signal, marker, etc.
 - [ ] Wave style for each wave
 - [ ] Embedded text editor, showing signal values at marker
