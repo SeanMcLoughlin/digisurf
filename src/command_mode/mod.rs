@@ -1,6 +1,8 @@
 pub mod builder;
 mod parser;
 pub mod registry;
+pub mod state;
+use crossterm::event::KeyCode;
 use parser::CommandParser;
 use ratatui::{
     layout::Rect,
@@ -9,13 +11,16 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Widget},
 };
 use registry::Command;
+use state::CommandModeState;
 use std::rc::Rc;
+
+pub trait CommandModeStateAccess {
+    fn command_state(&self) -> &CommandModeState;
+    fn command_state_mut(&mut self) -> &mut CommandModeState;
+}
 
 pub struct CommandModeWidget<S> {
     is_active: bool,
-    input_buffer: String,
-    result_message: Option<String>,
-    result_is_error: bool,
     command_parser: CommandParser<S>,
 }
 
@@ -23,9 +28,6 @@ impl<S> CommandModeWidget<S> {
     pub fn new() -> Self {
         Self {
             is_active: false,
-            input_buffer: String::new(),
-            result_message: None,
-            result_is_error: false,
             command_parser: CommandParser::new(),
         }
     }
@@ -33,9 +35,6 @@ impl<S> CommandModeWidget<S> {
     pub fn with_parser(parser: CommandParser<S>) -> Self {
         Self {
             is_active: false,
-            input_buffer: String::new(),
-            result_message: None,
-            result_is_error: false,
             command_parser: parser,
         }
     }
@@ -44,62 +43,66 @@ impl<S> CommandModeWidget<S> {
         self.is_active
     }
 
-    pub fn activate(&mut self) {
-        self.is_active = true;
-        self.input_buffer.clear();
-        self.result_message = None;
-    }
+    pub fn handle_input(&mut self, key: KeyCode, app_state: &mut S)
+    where
+        S: CommandModeStateAccess,
+    {
+        let cmd_state = app_state.command_state_mut();
 
-    pub fn deactivate(&mut self) {
-        self.is_active = false;
-        self.input_buffer.clear();
-    }
-
-    pub fn input(&mut self, key: char) {
-        if self.is_active {
-            self.input_buffer.push(key);
+        match key {
+            // Handle keyboard navigation and editing
+            KeyCode::Left => cmd_state.move_cursor_left(),
+            KeyCode::Right => cmd_state.move_cursor_right(),
+            KeyCode::Home => cmd_state.move_cursor_start(),
+            KeyCode::End => cmd_state.move_cursor_end(),
+            KeyCode::Backspace => cmd_state.backspace(),
+            KeyCode::Delete => cmd_state.delete(),
+            KeyCode::Char(c) => cmd_state.insert(c),
+            // Up/down for history navigation
+            KeyCode::Up => cmd_state.previous_history(),
+            KeyCode::Down => cmd_state.next_history(),
+            _ => {}
         }
     }
 
-    pub fn backspace(&mut self) {
-        if self.is_active && !self.input_buffer.is_empty() {
-            self.input_buffer.pop();
-        }
-    }
+    pub fn execute(&mut self, app_state: &mut S) -> bool
+    where
+        S: CommandModeStateAccess + 'static,
+    {
+        let command = app_state.command_state().input_buffer.clone();
 
-    pub fn execute(&mut self, state: &mut S) {
-        if self.is_active {
-            let command = self.input_buffer.clone();
-            let result = self.command_parser.execute(&command, state);
-            match result {
-                Ok(msg) => {
-                    self.result_message = Some(msg);
-                    self.result_is_error = false;
-                }
-                Err(err) => {
-                    self.result_message = Some(err);
-                    self.result_is_error = true;
-                }
+        if command.is_empty() {
+            return false;
+        }
+
+        // Add to history
+        app_state.command_state_mut().add_to_history();
+
+        // Execute the command
+        let result = self.command_parser.execute(&command, app_state);
+
+        // Store result
+        let cmd_state = app_state.command_state_mut();
+        match result {
+            Ok(msg) => {
+                cmd_state.result_message = Some(msg);
+                cmd_state.result_is_error = false;
             }
-            self.deactivate();
+            Err(err) => {
+                cmd_state.result_message = Some(err);
+                cmd_state.result_is_error = true;
+            }
         }
+
+        // Clear input buffer but keep result visible
+        cmd_state.input_buffer.clear();
+        cmd_state.cursor_position = 0;
+
+        true // Command was executed
     }
 
     pub fn register_command(&mut self, command: Rc<Box<dyn Command<S>>>) {
         self.command_parser.registry_mut().register(command);
-    }
-
-    pub fn render(&self) -> CommandModeRender {
-        CommandModeRender {
-            is_active: self.is_active,
-            input_buffer: &self.input_buffer,
-            result_message: self.result_message.as_deref(),
-            result_is_error: self.result_is_error,
-        }
-    }
-
-    pub fn clear_result(&mut self) {
-        self.result_message = None;
     }
 
     pub fn parser(&self) -> &CommandParser<S> {
@@ -163,12 +166,24 @@ mod tests {
     use super::*;
     use builder::CommandBuilder;
 
-    #[test]
-    fn test_generic_commands() {
-        struct TestState {
-            value: i32,
+    // Test structure needs to implement CommandModeStateAccess
+    struct TestState {
+        value: i32,
+        command_state: CommandModeState,
+    }
+
+    impl CommandModeStateAccess for TestState {
+        fn command_state(&self) -> &CommandModeState {
+            &self.command_state
         }
 
+        fn command_state_mut(&mut self) -> &mut CommandModeState {
+            &mut self.command_state
+        }
+    }
+
+    #[test]
+    fn test_generic_commands() {
         let mut widget = CommandModeWidget::<TestState>::new();
 
         widget.register_command(
@@ -191,20 +206,24 @@ mod tests {
             .build(),
         );
 
-        let mut state = TestState { value: 5 };
+        let mut state = TestState {
+            value: 5,
+            command_state: CommandModeState::default(),
+        };
 
-        // Test command execution
-        widget.activate();
-        widget.input_buffer = "increment".to_string();
+        // Test command execution - set input buffer directly in command state
+        state.command_state_mut().input_buffer = "increment".to_string();
         widget.execute(&mut state);
 
         assert_eq!(state.value, 6);
-        assert_eq!(widget.result_message, Some("Incremented to 6".to_string()));
-        assert_eq!(widget.result_is_error, false);
+        assert_eq!(
+            state.command_state.result_message,
+            Some("Incremented to 6".to_string())
+        );
+        assert_eq!(state.command_state.result_is_error, false);
 
         // Test with alias
-        widget.activate();
-        widget.input_buffer = "inc 10".to_string();
+        state.command_state_mut().input_buffer = "inc 10".to_string();
         widget.execute(&mut state);
 
         assert_eq!(state.value, 16);
@@ -212,10 +231,6 @@ mod tests {
 
     #[test]
     fn test_generic_commands_with_error() {
-        struct TestState {
-            value: i32,
-        }
-
         let mut widget = CommandModeWidget::<TestState>::new();
 
         widget.register_command(
@@ -238,20 +253,24 @@ mod tests {
             .build(),
         );
 
-        let mut state = TestState { value: 5 };
+        let mut state = TestState {
+            value: 5,
+            command_state: CommandModeState::default(),
+        };
 
         // Test command execution
-        widget.activate();
-        widget.input_buffer = "increment".to_string();
+        state.command_state_mut().input_buffer = "increment".to_string();
         widget.execute(&mut state);
 
         assert_eq!(state.value, 6);
-        assert_eq!(widget.result_message, Some("Incremented to 6".to_string()));
-        assert_eq!(widget.result_is_error, false);
+        assert_eq!(
+            state.command_state.result_message,
+            Some("Incremented to 6".to_string())
+        );
+        assert_eq!(state.command_state.result_is_error, false);
 
         // Test with alias
-        widget.activate();
-        widget.input_buffer = "inc 10".to_string();
+        state.command_state_mut().input_buffer = "inc 10".to_string();
         widget.execute(&mut state);
 
         assert_eq!(state.value, 16);

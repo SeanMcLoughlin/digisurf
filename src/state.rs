@@ -1,3 +1,5 @@
+use crate::command_mode::state::CommandModeState;
+use crate::command_mode::CommandModeStateAccess;
 use crate::types::AppMode;
 use crate::types::WaveValue;
 use std::collections::HashMap;
@@ -46,14 +48,26 @@ pub struct AppState {
     /// Flag used to differentiate between a drag operation and a potential click
     pub is_dragging: bool,
 
-    /// Current command text being entered in the command mode field
-    pub currently_typed_text_in_bottom_text_box: String,
+    /// State of command mode to render. This is accessed via methods in a trait implementation of
+    /// CommandModeStateAccess, so it is not public.
+    command_mode_state: CommandModeState,
 
     /// Flag indicating that the help menu is currently being displayed
     pub show_help: bool,
 
     /// Current scroll position in the help menu
     pub help_menu_scroll: usize,
+}
+
+// Access command mode state in the overall app state via a trait implementation
+impl CommandModeStateAccess for AppState {
+    fn command_state(&self) -> &CommandModeState {
+        &self.command_mode_state
+    }
+
+    fn command_state_mut(&mut self) -> &mut CommandModeState {
+        &mut self.command_mode_state
+    }
 }
 
 impl AppState {
@@ -149,5 +163,9 @@ impl AppState {
         } else {
             Vec::new()
         }
+    }
+
+    pub fn command_mode_state(&self) -> &CommandModeState {
+        &self.command_mode_state
     }
 }

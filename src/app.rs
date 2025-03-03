@@ -1,5 +1,5 @@
 use crate::{
-    command_mode::CommandModeWidget,
+    command_mode::{CommandModeStateAccess, CommandModeWidget},
     commands, constants,
     input::{COMMAND_KEYBINDINGS, NORMAL_KEYBINDINGS},
     state::AppState,
@@ -32,8 +32,6 @@ pub struct App {
     pub waveform: WaveformWidget,
     pub title_bar: TitleBarWidget,
     pub command_input: BottomTextBoxWidget,
-    pub command_result: Option<(String, bool)>, // (message, is_error)
-    pub command_result_time: Option<std::time::Instant>,
     pub command_mode: CommandModeWidget<AppState>,
 }
 
@@ -47,8 +45,6 @@ impl Default for App {
             waveform: WaveformWidget::default(),
             title_bar: TitleBarWidget::default(),
             command_input: BottomTextBoxWidget::default(),
-            command_result: None,
-            command_result_time: None,
             command_mode: CommandModeWidget::new(),
         };
         app.generate_test_data();
@@ -93,11 +89,11 @@ impl App {
                 }
             } else {
                 // Check if command result should be hidden
-                if let Some(time) = self.command_result_time {
+                if let Some(time) = self.state.command_state().command_result_time {
                     if time.elapsed().as_secs() >= constants::COMMAND_RESULT_HIDE_THRESHOLD_SECONDS
                     {
-                        self.command_result = None;
-                        self.command_result_time = None;
+                        self.state.command_state_mut().result_message = None;
+                        self.state.command_state_mut().command_result_time = None;
                     }
                 }
             }
@@ -113,34 +109,18 @@ impl App {
         match key {
             k if k == COMMAND_KEYBINDINGS.enter_normal_mode => {
                 self.state.mode = AppMode::Normal;
-                self.state.currently_typed_text_in_bottom_text_box.clear();
+                self.state.command_state_mut().clear();
             }
             k if k == COMMAND_KEYBINDINGS.execute_command => {
-                let command = self.state.currently_typed_text_in_bottom_text_box.clone();
-                let result = self
-                    .command_mode
-                    .parser()
-                    .execute(&command, &mut self.state);
-
-                match result {
-                    Ok(msg) => {
-                        self.command_result = Some((msg, false));
-                    }
-                    Err(err) => {
-                        self.command_result = Some((err, true));
-                    }
+                let executed = self.command_mode.execute(&mut self.state);
+                if executed {
+                    self.state.command_state_mut().command_result_time =
+                        Some(std::time::Instant::now());
+                    self.state.mode = AppMode::Normal;
                 }
-                self.command_result_time = Some(std::time::Instant::now());
-                self.state.mode = AppMode::Normal;
-                self.state.currently_typed_text_in_bottom_text_box.clear();
             }
-            KeyCode::Backspace => {
-                self.state.currently_typed_text_in_bottom_text_box.pop();
-            }
-            KeyCode::Char(c) => {
-                self.state.currently_typed_text_in_bottom_text_box.push(c);
-            }
-            _ => {}
+            // Let command mode handle all other keys
+            _ => self.command_mode.handle_input(key, &mut self.state),
         }
     }
 
@@ -150,7 +130,7 @@ impl App {
         } else {
             if key == NORMAL_KEYBINDINGS.enter_command_mode {
                 self.state.mode = AppMode::Command;
-                self.state.currently_typed_text_in_bottom_text_box.clear();
+                self.state.command_state_mut().clear();
             } else {
                 self.handle_normal_mode(key);
             }
@@ -415,8 +395,8 @@ impl Widget for &mut App {
             .render(self.layout.command_bar, buf, &mut self.state);
 
         // Command result message if there is one
-        if let Some((msg, is_error)) = &self.command_result {
-            let status_style = if *is_error {
+        if let Some(ref result_message) = self.state.command_state().result_message {
+            let status_style = if self.state.command_state().result_is_error {
                 Style::default().fg(Color::Red)
             } else {
                 Style::default().fg(Color::Green)
@@ -426,11 +406,14 @@ impl Widget for &mut App {
             let msg_area = Rect::new(
                 self.layout.command_bar.x,
                 self.layout.command_bar.y.saturating_sub(1),
-                self.layout.command_bar.width.min(msg.len() as u16),
+                self.layout
+                    .command_bar
+                    .width
+                    .min(result_message.len() as u16),
                 1,
             );
 
-            Paragraph::new(msg.clone())
+            Paragraph::new(result_message.clone())
                 .style(status_style)
                 .render(msg_area, buf);
         }

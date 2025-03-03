@@ -1,4 +1,4 @@
-use crate::{state::AppState, types::AppMode};
+use crate::{command_mode::CommandModeStateAccess, state::AppState, types::AppMode};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -21,7 +21,7 @@ impl StatefulWidget for BottomTextBoxWidget {
 
         // Command text to display
         let command_text = if state.mode == AppMode::Command {
-            format!(":{}", state.currently_typed_text_in_bottom_text_box)
+            format!(":{}", state.command_state().input_buffer)
         } else {
             " ':' for command mode. :q, then <Enter> to quit. :h then <Enter> for help.".to_string()
         };
@@ -36,17 +36,14 @@ impl StatefulWidget for BottomTextBoxWidget {
             .style(style)
             .render(inner_area, buf);
 
-        // In command mode, also render a cursor at the end of the text
+        // In command mode, render cursor
         if state.mode == AppMode::Command {
-            let cursor_x =
-                inner_area.x + 1 + state.currently_typed_text_in_bottom_text_box.len() as u16; // +1 for the ':'
+            // Position cursor at cursor_position, not just at the end
+            let cursor_x = inner_area.x + 1 + state.command_state().cursor_position as u16;
             let cursor_y = inner_area.y;
 
-            // Make sure cursor is within bounds and valid for the buffer
             if cursor_x < inner_area.right() && cursor_y < buf.area().height {
-                // Get the character at cursor position
                 let cell = &mut buf[(cursor_x, cursor_y)];
-                // Highlight the character by inverting colors
                 cell.set_bg(cell.fg);
                 cell.set_fg(Color::Black);
             }
