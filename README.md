@@ -20,6 +20,10 @@ A TUI signal waveform viewer.
 - [x] Command mode
   - [ ] Tab complete
   - [ ] Up arrow for previous commands
+  - [ ] Left/Right arrows to move cursor to different positions
+  - [ ] Ctrl-U clear backwards from cursor
+  - [ ] Ctrl-W clears word before cursor
+  - [ ] Ctrl-C exit
 - [ ] Color picker for each wave+signal, marker, etc.
 - [ ] Wave style for each wave
 - [ ] Embedded text editor, showing signal values at marker
