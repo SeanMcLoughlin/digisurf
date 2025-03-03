@@ -1,7 +1,10 @@
-use crate::{command_mode::builder::CommandBuilder, state::AppState};
+use crate::{
+    command_mode::{builder::CommandBuilder, registry::Command},
+    state::AppState,
+};
 use std::rc::Rc;
 
-pub fn create() -> Rc<Box<dyn crate::command_mode::registry::Command<AppState>>> {
+pub fn create() -> Rc<Box<dyn Command<AppState>>> {
     CommandBuilder::new(
         "help",
         "Show help information",
