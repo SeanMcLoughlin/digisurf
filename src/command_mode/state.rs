@@ -84,14 +84,15 @@ impl CommandModeState {
     pub fn next_history(&mut self) {
         if let Some(index) = self.history_index {
             if index < self.history.len() - 1 {
+                // Move to the next command in history
                 self.history_index = Some(index + 1);
                 self.input_buffer = self.history[index + 1].clone();
-                self.cursor_position = self.input_buffer.len();
+            } else {
+                // When reaching the end of history, clear the input
+                self.history_index = None;
+                self.input_buffer.clear();
             }
-        } else if !self.history.is_empty() {
-            self.history_index = Some(0);
-            self.input_buffer = self.history[0].clone();
-            self.cursor_position = self.input_buffer.len();
         }
+        self.cursor_position = self.input_buffer.len();
     }
 }

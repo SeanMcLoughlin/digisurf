@@ -166,13 +166,12 @@ mod tests {
     use super::*;
     use builder::CommandBuilder;
 
-    // Test structure needs to implement CommandModeStateAccess
-    struct TestState {
-        value: i32,
+    // The state that wraps command mode state and is used in the top-level ratatui application
+    struct TestAppState {
         command_state: CommandModeState,
     }
 
-    impl CommandModeStateAccess for TestState {
+    impl CommandModeStateAccess for TestAppState {
         fn command_state(&self) -> &CommandModeState {
             &self.command_state
         }
@@ -183,96 +182,192 @@ mod tests {
     }
 
     #[test]
-    fn test_generic_commands() {
-        let mut widget = CommandModeWidget::<TestState>::new();
-
-        widget.register_command(
-            CommandBuilder::new(
-                "increment",
-                "Increment the value",
-                |args, state: &mut TestState| {
-                    if args.is_empty() {
-                        state.value += 1;
-                        Ok(format!("Incremented to {}", state.value))
-                    } else if let Ok(amount) = args[0].parse::<i32>() {
-                        state.value += amount;
-                        Ok(format!("Incremented by {} to {}", amount, state.value))
-                    } else {
-                        Err("Invalid increment amount".to_string())
-                    }
-                },
-            )
-            .alias("inc")
-            .build(),
-        );
-
-        let mut state = TestState {
-            value: 5,
-            command_state: CommandModeState::default(),
+    fn test_command_builder() {
+        // Create a test app state
+        let mut app_state = TestAppState {
+            command_state: CommandModeState::new(),
         };
 
-        // Test command execution - set input buffer directly in command state
-        state.command_state_mut().input_buffer = "increment".to_string();
-        widget.execute(&mut state);
+        // Create a command mode widget that implements the CommandRegistry trait
+        let mut command_widget = CommandModeWidget::new();
 
-        assert_eq!(state.value, 6);
-        assert_eq!(
-            state.command_state.result_message,
-            Some("Incremented to 6".to_string())
-        );
-        assert_eq!(state.command_state.result_is_error, false);
+        // Define a struct to create the echo command
+        struct EchoCommand;
+        impl EchoCommand {
+            fn create() -> Rc<Box<dyn Command<TestAppState>>> {
+                CommandBuilder::new("echo", "Displays the arguments provided", |args, _state| {
+                    if args.is_empty() {
+                        Ok("Nothing to echo".to_string())
+                    } else {
+                        Ok(args.join(" "))
+                    }
+                })
+                .build()
+            }
+        }
 
-        // Test with alias
-        state.command_state_mut().input_buffer = "inc 10".to_string();
-        widget.execute(&mut state);
+        // Define a struct to create the greet command
+        struct GreetCommand;
+        impl GreetCommand {
+            fn create() -> Rc<Box<dyn Command<TestAppState>>> {
+                CommandBuilder::new("greet", "Greets a person", |args, _state| {
+                    if args.is_empty() {
+                        Ok("Hello, world!".to_string())
+                    } else {
+                        Ok(format!("Hello, {}!", args[0]))
+                    }
+                })
+                .alias("hello")
+                .alias("hi")
+                .build()
+            }
+        }
 
-        assert_eq!(state.value, 16);
+        command_widget.register_command(EchoCommand::create());
+        command_widget.register_command(GreetCommand::create());
+
+        // Test echo command
+        let result = command_widget
+            .parser()
+            .execute("echo test 123", &mut app_state);
+        assert_eq!(result, Ok("test 123".to_string()));
+
+        // Test greet command
+        let result = command_widget
+            .parser()
+            .execute("greet Alice", &mut app_state);
+        assert_eq!(result, Ok("Hello, Alice!".to_string()));
+
+        // Test greet command with no args
+        let result = command_widget.parser().execute("greet", &mut app_state);
+        assert_eq!(result, Ok("Hello, world!".to_string()));
+
+        // Test alias
+        let result = command_widget.parser().execute("hello Bob", &mut app_state);
+        assert_eq!(result, Ok("Hello, Bob!".to_string()));
+
+        // Test another alias
+        let result = command_widget
+            .parser()
+            .execute("hi Charlie", &mut app_state);
+        assert_eq!(result, Ok("Hello, Charlie!".to_string()));
+
+        // Test invalid command
+        let result = command_widget.parser().execute("unknown", &mut app_state);
+        assert!(result.is_err());
     }
 
     #[test]
-    fn test_generic_commands_with_error() {
-        let mut widget = CommandModeWidget::<TestState>::new();
+    fn test_command_state_cursor_movement() {
+        let mut state = CommandModeState::new();
+        state.input_buffer = "test".to_string();
 
-        widget.register_command(
-            CommandBuilder::new(
-                "increment",
-                "Increment the value",
-                |args, state: &mut TestState| {
-                    if args.is_empty() {
-                        state.value += 1;
-                        Ok(format!("Incremented to {}", state.value))
-                    } else if let Ok(amount) = args[0].parse::<i32>() {
-                        state.value += amount;
-                        Ok(format!("Incremented by {} to {}", amount, state.value))
-                    } else {
-                        Err("Invalid increment amount".to_string())
-                    }
-                },
-            )
-            .alias("inc")
-            .build(),
-        );
+        // Test cursor movement
+        state.cursor_position = 0;
+        state.move_cursor_right();
+        assert_eq!(state.cursor_position, 1);
 
-        let mut state = TestState {
-            value: 5,
-            command_state: CommandModeState::default(),
-        };
+        state.move_cursor_right();
+        assert_eq!(state.cursor_position, 2);
 
-        // Test command execution
-        state.command_state_mut().input_buffer = "increment".to_string();
-        widget.execute(&mut state);
+        state.move_cursor_left();
+        assert_eq!(state.cursor_position, 1);
 
-        assert_eq!(state.value, 6);
-        assert_eq!(
-            state.command_state.result_message,
-            Some("Incremented to 6".to_string())
-        );
-        assert_eq!(state.command_state.result_is_error, false);
+        // Test bounds
+        state.cursor_position = 0;
+        state.move_cursor_left();
+        assert_eq!(state.cursor_position, 0);
 
-        // Test with alias
-        state.command_state_mut().input_buffer = "inc 10".to_string();
-        widget.execute(&mut state);
+        state.cursor_position = 4; // at the end
+        state.move_cursor_right();
+        assert_eq!(state.cursor_position, 4);
 
-        assert_eq!(state.value, 16);
+        // Test start/end
+        state.move_cursor_start();
+        assert_eq!(state.cursor_position, 0);
+
+        state.move_cursor_end();
+        assert_eq!(state.cursor_position, 4);
+    }
+
+    #[test]
+    fn test_command_state_editing() {
+        let mut state = CommandModeState::new();
+
+        // Test insertion
+        state.insert('a');
+        assert_eq!(state.input_buffer, "a");
+        assert_eq!(state.cursor_position, 1);
+
+        state.insert('b');
+        assert_eq!(state.input_buffer, "ab");
+        assert_eq!(state.cursor_position, 2);
+
+        // Test insertion in the middle
+        state.move_cursor_start();
+        state.insert('c');
+        assert_eq!(state.input_buffer, "cab");
+        assert_eq!(state.cursor_position, 1);
+
+        // Test backspace
+        state.backspace();
+        assert_eq!(state.input_buffer, "ab");
+        assert_eq!(state.cursor_position, 0);
+
+        // Test delete
+        state.delete();
+        assert_eq!(state.input_buffer, "b");
+        assert_eq!(state.cursor_position, 0);
+
+        // Test backspace at start of buffer
+        state.backspace();
+        assert_eq!(state.input_buffer, "b");
+        assert_eq!(state.cursor_position, 0);
+
+        // Test delete at end of buffer
+        state.move_cursor_end();
+        state.delete();
+        assert_eq!(state.input_buffer, "b");
+        assert_eq!(state.cursor_position, 1);
+    }
+
+    #[test]
+    fn test_command_history() {
+        let mut state = CommandModeState::new();
+
+        // Add commands to history
+        for cmd in ["command1", "command2", "command3"] {
+            state.input_buffer = cmd.to_string();
+            state.add_to_history();
+        }
+
+        // Clear input and test history navigation
+        state.input_buffer.clear();
+        state.cursor_position = 0;
+
+        // Navigate to previous commands
+        state.previous_history();
+        assert_eq!(state.input_buffer, "command3");
+
+        state.previous_history();
+        assert_eq!(state.input_buffer, "command2");
+
+        state.previous_history();
+        assert_eq!(state.input_buffer, "command1");
+
+        // Can't go back further than oldest command
+        state.previous_history();
+        assert_eq!(state.input_buffer, "command1");
+
+        // Navigate forward
+        state.next_history();
+        assert_eq!(state.input_buffer, "command2");
+
+        state.next_history();
+        assert_eq!(state.input_buffer, "command3");
+
+        // Forward past the newest command should clear the buffer
+        state.next_history();
+        assert_eq!(state.input_buffer, "");
     }
 }
