@@ -1,5 +1,5 @@
+use crate::parsers::types::WaveValue;
 use crate::state::AppState;
-use crate::types::WaveValue;
 use ratatui::prelude::{Buffer, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget, Widget};
@@ -21,7 +21,7 @@ impl StatefulWidget for SignalListWidget {
         let waveform_height = 2; // Match the value in draw_waveforms
 
         // Now manually render each signal name at the proper position
-        for (idx, name) in state.signals.iter().enumerate() {
+        for (idx, name) in state.waveform_data.signals.iter().enumerate() {
             let y_position = inner_area.y + (idx as u16 * waveform_height);
 
             // Skip if we're outside the visible area

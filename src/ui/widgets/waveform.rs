@@ -1,4 +1,8 @@
-use crate::{constants::DRAG_COLOR, state::AppState, types::WaveValue};
+use crate::{
+    constants::DRAG_COLOR,
+    parsers::types::{Value, WaveValue},
+    state::AppState,
+};
 use ratatui::{
     layout::Rect,
     prelude::Buffer,
@@ -38,14 +42,10 @@ impl WaveformWidget {
                 for (t, v) in values {
                     let x = time_to_x(*t);
                     let (y, color) = match v {
-                        WaveValue::Binary(vcd::Value::V1) => {
-                            (1.5, style.fg.unwrap_or(Color::White))
-                        }
-                        WaveValue::Binary(vcd::Value::V0) => {
-                            (0.5, style.fg.unwrap_or(Color::White))
-                        }
-                        WaveValue::Binary(vcd::Value::Z) => (1.0, Color::Magenta),
-                        WaveValue::Binary(vcd::Value::X) => (1.0, Color::Red),
+                        WaveValue::Binary(Value::V1) => (1.5, style.fg.unwrap_or(Color::White)),
+                        WaveValue::Binary(Value::V0) => (0.5, style.fg.unwrap_or(Color::White)),
+                        WaveValue::Binary(Value::VZ) => (1.0, Color::Magenta),
+                        WaveValue::Binary(Value::VX) => (1.0, Color::Red),
                         _ => (1.0, style.fg.unwrap_or(Color::White)),
                     };
 
@@ -174,7 +174,7 @@ impl WaveformWidget {
         let time_start = state.time_start;
         let time_range = state.time_range;
 
-        for (idx, signal_name) in state.signals.iter().enumerate() {
+        for (idx, signal_name) in state.waveform_data.signals.iter().enumerate() {
             let signal_area = Rect::new(
                 area.x,
                 area.y + (idx as u16 * waveform_height),
@@ -319,7 +319,7 @@ impl StatefulWidget for WaveformWidget {
     type State = AppState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        if state.signals.is_empty() {
+        if state.waveform_data.signals.is_empty() {
             return;
         }
 

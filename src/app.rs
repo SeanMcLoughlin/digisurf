@@ -2,8 +2,9 @@ use crate::{
     command_mode::{CommandModeStateAccess, CommandModeWidget},
     commands, constants,
     input::{COMMAND_KEYBINDINGS, NORMAL_KEYBINDINGS},
+    parsers,
     state::AppState,
-    types::{AppMode, WaveValue},
+    types::AppMode,
     ui::{
         layout::{create_layout, AppLayout},
         widgets::{
@@ -21,8 +22,8 @@ use ratatui::{
     widgets::{Paragraph, Widget},
     DefaultTerminal,
 };
-use std::{error::Error, time::Duration};
-use vcd::Value;
+use std::io;
+use std::{error::Error, path::Path, time::Duration};
 
 pub struct App {
     pub state: AppState,
@@ -47,7 +48,6 @@ impl Default for App {
             command_input: BottomTextBoxWidget::default(),
             command_mode: CommandModeWidget::new(),
         };
-        app.generate_test_data();
         app.register_commands();
         app
     }
@@ -230,13 +230,13 @@ impl App {
         match key {
             k if k == NORMAL_KEYBINDINGS.down => {
                 self.state.selected_signal =
-                    (self.state.selected_signal + 1) % self.state.signals.len();
+                    (self.state.selected_signal + 1) % self.state.waveform_data.signals.len();
             }
             k if k == NORMAL_KEYBINDINGS.up => {
                 if self.state.selected_signal > 0 {
                     self.state.selected_signal -= 1;
                 } else {
-                    self.state.selected_signal = self.state.signals.len() - 1;
+                    self.state.selected_signal = self.state.waveform_data.signals.len() - 1;
                 }
             }
             k if k == NORMAL_KEYBINDINGS.left => {
@@ -248,16 +248,21 @@ impl App {
                 }
             }
             k if k == NORMAL_KEYBINDINGS.right => {
-                if self.state.time_start < self.state.max_time {
+                if self.state.time_start < self.state.waveform_data.max_time {
                     // Ensure the waveform view doesn't go beyond max_time
-                    let max_start = self.state.max_time.saturating_sub(self.state.time_range);
+                    let max_start = self
+                        .state
+                        .waveform_data
+                        .max_time
+                        .saturating_sub(self.state.time_range);
                     self.state.time_start =
                         (self.state.time_start + self.state.time_range / 4).min(max_start);
                 }
             }
             k if k == NORMAL_KEYBINDINGS.zoom_out => {
                 // Calculate the new time range, doubling but capped at max_time
-                let new_time_range = (self.state.time_range * 2).min(self.state.max_time);
+                let new_time_range =
+                    (self.state.time_range * 2).min(self.state.waveform_data.max_time);
 
                 // Calculate center point of current view
                 let center = self.state.time_start + (self.state.time_range / 2);
@@ -271,11 +276,15 @@ impl App {
                 };
 
                 // Make sure the end time (start + range) doesn't exceed max_time
-                let adjusted_start = if new_start + new_time_range > self.state.max_time {
-                    self.state.max_time.saturating_sub(new_time_range)
-                } else {
-                    new_start
-                };
+                let adjusted_start =
+                    if new_start + new_time_range > self.state.waveform_data.max_time {
+                        self.state
+                            .waveform_data
+                            .max_time
+                            .saturating_sub(new_time_range)
+                    } else {
+                        new_start
+                    };
 
                 self.state.time_start = adjusted_start;
                 self.state.time_range = new_time_range;
@@ -296,7 +305,7 @@ impl App {
             }
             k if k == NORMAL_KEYBINDINGS.zoom_full => {
                 self.state.time_start = 0;
-                self.state.time_range = self.state.max_time;
+                self.state.time_range = self.state.waveform_data.max_time;
             }
 
             k if k == NORMAL_KEYBINDINGS.delete_primary_marker => {
@@ -310,68 +319,25 @@ impl App {
         }
     }
 
-    pub fn generate_test_data(&mut self) {
-        let test_signals = vec![
-            "clk".to_string(),
-            "reset".to_string(),
-            "data_valid".to_string(),
-            "data".to_string(),
-            "tristate".to_string(),  // For Z states
-            "undefined".to_string(), // For X states
-        ];
+    pub fn load_vcd_file<P: AsRef<Path>>(&mut self, path: P) -> io::Result<()> {
+        // Clear existing data
+        self.state.waveform_data.signals.clear();
+        self.state.waveform_data.values.clear();
 
-        for signal in test_signals {
-            self.state.signals.push(signal.clone());
-            let mut values = Vec::new();
+        // Parse the VCD file
+        let waveform_data = parsers::vcd::parse_vcd_file(path)?;
 
-            for t in 0..100 {
-                let value = match signal.as_str() {
-                    "clk" => {
-                        if t % 2 == 0 {
-                            WaveValue::Binary(Value::V1)
-                        } else {
-                            WaveValue::Binary(Value::V0)
-                        }
-                    }
-                    "reset" => {
-                        if t < 10 {
-                            WaveValue::Binary(Value::V1)
-                        } else {
-                            WaveValue::Binary(Value::V0)
-                        }
-                    }
-                    "data_valid" => {
-                        if t % 10 == 0 {
-                            WaveValue::Binary(Value::V1)
-                        } else {
-                            WaveValue::Binary(Value::V0)
-                        }
-                    }
-                    "data" => WaveValue::Bus(format!("{:02X}", t % 256)),
-                    "tristate" => {
-                        // Demonstrate high-impedance (Z) state every 3 cycles
-                        if t % 3 == 0 {
-                            WaveValue::Binary(Value::Z)
-                        } else {
-                            WaveValue::Binary(Value::V1)
-                        }
-                    }
-                    "undefined" => {
-                        // Demonstrate undefined (X) state every 5 cycles
-                        if t % 5 == 0 {
-                            WaveValue::Binary(Value::X)
-                        } else {
-                            WaveValue::Binary(Value::V0)
-                        }
-                    }
-                    _ => WaveValue::Binary(Value::V0),
-                };
-                values.push((t as u64, value));
-            }
+        // Update the state with the parsed data
+        self.state.waveform_data.signals = waveform_data.signals;
+        self.state.waveform_data.values = waveform_data.values;
+        self.state.waveform_data.max_time = waveform_data.max_time;
 
-            self.state.values.insert(signal, values);
-        }
-        self.state.max_time = 100;
+        // Reset the view to show the full waveform
+        self.state.time_start = 0;
+        self.state.time_range = waveform_data.max_time;
+        self.state.selected_signal = 0;
+
+        Ok(())
     }
 }
 
@@ -427,12 +393,55 @@ mod tests {
     use ratatui::{backend::TestBackend, Terminal};
 
     #[test]
-    fn test_render_app() {
+    fn test_render_empty_app() {
         let mut app = App::default();
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
             .draw(|frame| frame.render_widget(&mut app, frame.area()))
             .unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_app_with_test_data() {
+        use crate::parsers::types::{Value, WaveValue};
+        let mut app = App::default();
+
+        // Add some test data to the app state
+        app.state
+            .waveform_data
+            .signals
+            .push("test_signal_1".to_string());
+        app.state
+            .waveform_data
+            .signals
+            .push("test_signal_2".to_string());
+        app.state.waveform_data.max_time = 1000;
+
+        // Add some test values
+        app.state.waveform_data.values.insert(
+            "test_signal_1".to_string(),
+            vec![
+                (0, WaveValue::Binary(Value::V0)),
+                (500, WaveValue::Binary(Value::V1)),
+            ],
+        );
+        app.state.waveform_data.values.insert(
+            "test_signal_2".to_string(),
+            vec![(0, WaveValue::Binary(Value::V1))],
+        );
+
+        // Set up the view parameters
+        app.state.time_start = 0;
+        app.state.time_range = 1000;
+        app.state.selected_signal = 0;
+
+        // Render the app
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
         assert_snapshot!(terminal.backend());
     }
 }

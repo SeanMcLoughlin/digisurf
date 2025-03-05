@@ -10,7 +10,7 @@ pub fn create() -> Rc<Box<dyn Command<AppState>>> {
         "Zoom to show the full waveform",
         |_args, state: &mut AppState| {
             state.time_start = 0;
-            state.time_range = state.max_time;
+            state.time_range = state.waveform_data.max_time;
             Ok("Zoomed to full view".to_string())
         },
     )

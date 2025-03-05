@@ -15,7 +15,7 @@ pub fn create() -> Rc<Box<dyn Command<AppState>>> {
 
             if let Ok(marker_num) = args[0].parse::<u8>() {
                 if let Ok(time) = args[1].parse::<u64>() {
-                    if time <= state.max_time {
+                    if time <= state.waveform_data.max_time {
                         match marker_num {
                             1 => {
                                 state.primary_marker = Some(time);
@@ -28,7 +28,10 @@ pub fn create() -> Rc<Box<dyn Command<AppState>>> {
                             _ => return Err("Invalid marker number (use 1 or 2)".to_string()),
                         }
                     }
-                    return Err(format!("Time out of range (0-{})", state.max_time));
+                    return Err(format!(
+                        "Time out of range (0-{})",
+                        state.waveform_data.max_time
+                    ));
                 }
                 return Err("Invalid time format".to_string());
             }

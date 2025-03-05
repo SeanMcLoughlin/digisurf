@@ -16,7 +16,7 @@ pub fn create() -> Rc<Box<dyn Command<AppState>>> {
             if let Ok(factor) = args[0].parse::<u64>() {
                 if factor > 0 {
                     let center = state.time_start + (state.time_range / 2);
-                    let new_range = state.max_time / factor;
+                    let new_range = state.waveform_data.max_time / factor;
 
                     // Calculate new start time based on center point
                     let half_new_range = new_range / 2;

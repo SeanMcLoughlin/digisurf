@@ -1,12 +1,16 @@
 mod app;
+mod cli;
 mod command_mode;
 mod commands;
 mod constants;
 mod input;
+mod parsers;
 mod state;
 mod types;
 mod ui;
 use app::App;
+use clap::Parser;
+use cli::CliArgs;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
@@ -15,12 +19,33 @@ use crossterm::{
 use std::{error::Error, io};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let args = CliArgs::parse();
+
+    let mut app = App::default();
+    if let Some(file_path) = args.file_name {
+        let result = if file_path.ends_with(".vcd") {
+            app.load_vcd_file(file_path)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Unsupported file format. Only .vcd files are supported.",
+            ))
+        };
+
+        match result {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Error loading waveform file: {}", e);
+            }
+        }
+    }
+
     // Terminal setup
     enable_raw_mode()?;
     execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
-
     let terminal = ratatui::init();
-    let app_result = App::default().run(terminal);
+
+    let app_result = app.run(terminal);
     ratatui::restore();
 
     // Terminal cleanup

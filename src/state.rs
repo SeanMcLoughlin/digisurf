@@ -1,8 +1,8 @@
-use crate::command_mode::state::CommandModeState;
-use crate::command_mode::CommandModeStateAccess;
-use crate::types::AppMode;
-use crate::types::WaveValue;
-use std::collections::HashMap;
+use crate::{
+    command_mode::{state::CommandModeState, CommandModeStateAccess},
+    parsers::types::{WaveValue, WaveformData},
+    types::AppMode,
+};
 
 #[derive(Default)]
 pub struct AppState {
@@ -12,11 +12,8 @@ pub struct AppState {
     /// The mode the application is currently in.
     pub mode: AppMode,
 
-    /// Map of signal names to their values at each time step.
-    pub values: HashMap<String, Vec<(u64, WaveValue)>>,
-
-    /// List of all currently visible signals.
-    pub signals: Vec<String>,
+    /// All data about the waveform parsed from the input file.
+    pub waveform_data: WaveformData,
 
     // Currently highlighted signal
     pub selected_signal: usize,
@@ -29,9 +26,6 @@ pub struct AppState {
     /// The size of the waveform view in time step units. For example, if time_offset is 3 and this
     /// variable is 10, the waveform view will show time steps 3 through 13.
     pub time_range: u64,
-
-    /// The end time of the entire waveform, regardless of zoom level.
-    pub max_time: u64,
 
     /// Primary marker position in time step units.
     pub primary_marker: Option<u64>,
@@ -95,7 +89,7 @@ impl AppState {
     }
 
     pub fn get_value_at_marker(&self, signal: &str, marker_time: u64) -> Option<WaveValue> {
-        if let Some(values) = self.values.get(signal) {
+        if let Some(values) = self.waveform_data.values.get(signal) {
             // Find the value at or just before the marker time
             let mut last_value = None;
 
@@ -112,7 +106,7 @@ impl AppState {
     }
 
     pub fn get_transition_at_marker(&self, signal: &str, marker_time: u64) -> Option<String> {
-        if let Some(values) = self.values.get(signal) {
+        if let Some(values) = self.waveform_data.values.get(signal) {
             for i in 0..values.len() {
                 let (time, _) = values[i];
 
@@ -154,7 +148,7 @@ impl AppState {
     }
 
     pub fn get_visible_values(&self, signal: &str) -> Vec<(u64, WaveValue)> {
-        if let Some(values) = self.values.get(signal) {
+        if let Some(values) = self.waveform_data.values.get(signal) {
             values
                 .iter()
                 .filter(|(t, _)| *t >= self.time_start && *t < self.time_start + self.time_range)

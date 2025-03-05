@@ -18,7 +18,7 @@ impl StatefulWidget for TitleBarWidget {
             "DigiSurf | Time: {} to {} of {}",
             state.time_start,
             state.time_start + state.time_range,
-            state.max_time
+            state.waveform_data.max_time
         );
 
         // Combine base title with marker information
