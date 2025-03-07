@@ -1,3 +1,4 @@
+use crate::config;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Default)]
@@ -21,9 +22,16 @@ pub fn create_layout(area: Rect) -> AppLayout {
         )
         .split(area);
 
+    // Use config value for signal list width
     let content_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
+        .constraints(
+            [
+                Constraint::Percentage(config::read_config().ui.signal_list_width),
+                Constraint::Percentage(100 - config::read_config().ui.signal_list_width),
+            ]
+            .as_ref(),
+        )
         .split(main_chunks[1]);
 
     AppLayout {

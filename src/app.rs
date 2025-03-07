@@ -1,8 +1,6 @@
 use crate::{
     command_mode::{CommandModeStateAccess, CommandModeWidget},
-    commands, constants,
-    input::{COMMAND_KEYBINDINGS, NORMAL_KEYBINDINGS},
-    parsers,
+    commands, config, constants, parsers,
     state::AppState,
     types::AppMode,
     ui::{
@@ -107,11 +105,11 @@ impl App {
 
     pub fn handle_command_input(&mut self, key: KeyCode) {
         match key {
-            k if k == COMMAND_KEYBINDINGS.enter_normal_mode => {
+            k if k == config::read_config().keybindings.enter_normal_mode => {
                 self.state.mode = AppMode::Normal;
                 self.state.command_state_mut().clear();
             }
-            k if k == COMMAND_KEYBINDINGS.execute_command => {
+            k if k == config::read_config().keybindings.execute_command => {
                 let executed = self.command_mode.execute(&mut self.state);
                 if executed {
                     self.state.command_state_mut().command_result_time =
@@ -128,7 +126,7 @@ impl App {
         if self.state.mode == AppMode::Command {
             self.handle_command_input(key);
         } else {
-            if key == NORMAL_KEYBINDINGS.enter_command_mode {
+            if key == config::read_config().keybindings.enter_command_mode {
                 self.state.mode = AppMode::Command;
                 self.state.command_state_mut().clear();
             } else {
@@ -228,18 +226,18 @@ impl App {
 
     fn handle_normal_mode(&mut self, key: KeyCode) {
         match key {
-            k if k == NORMAL_KEYBINDINGS.down => {
+            k if k == config::read_config().keybindings.down => {
                 self.state.selected_signal =
                     (self.state.selected_signal + 1) % self.state.waveform_data.signals.len();
             }
-            k if k == NORMAL_KEYBINDINGS.up => {
+            k if k == config::read_config().keybindings.up => {
                 if self.state.selected_signal > 0 {
                     self.state.selected_signal -= 1;
                 } else {
                     self.state.selected_signal = self.state.waveform_data.signals.len() - 1;
                 }
             }
-            k if k == NORMAL_KEYBINDINGS.left => {
+            k if k == config::read_config().keybindings.left => {
                 if self.state.time_start > 0 {
                     self.state.time_start = self
                         .state
@@ -247,7 +245,7 @@ impl App {
                         .saturating_sub(self.state.time_range / 4);
                 }
             }
-            k if k == NORMAL_KEYBINDINGS.right => {
+            k if k == config::read_config().keybindings.right => {
                 if self.state.time_start < self.state.waveform_data.max_time {
                     // Ensure the waveform view doesn't go beyond max_time
                     let max_start = self
@@ -259,7 +257,7 @@ impl App {
                         (self.state.time_start + self.state.time_range / 4).min(max_start);
                 }
             }
-            k if k == NORMAL_KEYBINDINGS.zoom_out => {
+            k if k == config::read_config().keybindings.zoom_out => {
                 // Calculate the new time range, doubling but capped at max_time
                 let new_time_range =
                     (self.state.time_range * 2).min(self.state.waveform_data.max_time);
@@ -289,7 +287,7 @@ impl App {
                 self.state.time_start = adjusted_start;
                 self.state.time_range = new_time_range;
             }
-            k if k == NORMAL_KEYBINDINGS.zoom_in => {
+            k if k == config::read_config().keybindings.zoom_in => {
                 // Calculate center point of current view
                 let center = self.state.time_start + (self.state.time_range / 2);
 
@@ -303,15 +301,15 @@ impl App {
                 self.state.time_start = new_start;
                 self.state.time_range = new_time_range;
             }
-            k if k == NORMAL_KEYBINDINGS.zoom_full => {
+            k if k == config::read_config().keybindings.zoom_full => {
                 self.state.time_start = 0;
                 self.state.time_range = self.state.waveform_data.max_time;
             }
 
-            k if k == NORMAL_KEYBINDINGS.delete_primary_marker => {
+            k if k == config::read_config().keybindings.delete_primary_marker => {
                 self.state.primary_marker = None;
             }
-            k if k == NORMAL_KEYBINDINGS.delete_secondary_marker => {
+            k if k == config::read_config().keybindings.delete_secondary_marker => {
                 self.state.secondary_marker = None;
             }
 
@@ -388,12 +386,15 @@ impl Widget for &mut App {
 
 #[cfg(test)]
 mod tests {
+    use crate::config;
+
     use super::App;
     use insta::assert_snapshot;
     use ratatui::{backend::TestBackend, Terminal};
 
     #[test]
     fn test_render_empty_app() {
+        config::load_config(None).unwrap();
         let mut app = App::default();
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
@@ -405,6 +406,7 @@ mod tests {
     #[test]
     fn test_render_app_with_test_data() {
         use crate::parsers::types::{Value, WaveValue};
+        config::load_config(None).unwrap();
         let mut app = App::default();
 
         // Add some test data to the app state

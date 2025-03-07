@@ -1,0 +1,10 @@
+[ui]
+signal_list_width = 20
+theme = "default"
+marker_color_primary = "yellow"
+marker_color_secondary = "white"
+
+[keybindings]
+zoom_in = { Char = "+" }
+zoom_out = { Char = "-" }
+enter_command_mode = { Char = ":" }

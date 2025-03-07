@@ -1,5 +1,6 @@
 use crate::{
     command_mode::{state::CommandModeState, CommandModeStateAccess},
+    config,
     parsers::types::{WaveValue, WaveformData},
     types::AppMode,
 };
@@ -51,6 +52,10 @@ pub struct AppState {
 
     /// Current scroll position in the help menu
     pub help_menu_scroll: usize,
+
+    /// Configuration state. Originally loaded from a file, but saved in app state so that the user
+    /// can update configuration values while the application is running.
+    pub config: config::AppConfig,
 }
 
 // Access command mode state in the overall app state via a trait implementation
@@ -68,6 +73,7 @@ impl AppState {
     pub fn new() -> Self {
         let mut app_state = AppState::default();
         app_state.time_range = 50;
+        app_state.config = config::read_config();
         app_state
     }
 

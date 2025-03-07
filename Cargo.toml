@@ -7,10 +7,13 @@ include = ["resources/**/*"]
 
 [dependencies]
 clap = { version = "4.5.31", features = ["derive"] }
-crossterm = "0.28.1"
+crossterm = { version = "0.28.1", features = ["serde"] }
+directories = "6.0.0"
 lazy_static = "1.5.0"
 nom = "8.0.0"
 ratatui = "0.29.0"
+serde = { version = "1.0.218", features = ["derive"] }
+toml = "0.8.20"
 
 [dev-dependencies]
 insta = "1.42.1"

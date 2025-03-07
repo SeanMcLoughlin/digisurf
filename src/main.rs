@@ -2,8 +2,8 @@ mod app;
 mod cli;
 mod command_mode;
 mod commands;
+mod config;
 mod constants;
-mod input;
 mod parsers;
 mod state;
 mod types;
@@ -20,6 +20,7 @@ use std::{error::Error, io};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = CliArgs::parse();
+    config::load_config(args.config_file)?;
 
     let mut app = App::default();
     if let Some(file_path) = args.file_name {
