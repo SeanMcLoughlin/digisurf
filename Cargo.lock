@@ -234,6 +234,7 @@ dependencies = [
  "clap",
  "crossterm",
  "directories",
+ "indexmap",
  "insta",
  "lazy_static",
  "nom",

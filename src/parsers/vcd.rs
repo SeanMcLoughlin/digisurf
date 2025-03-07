@@ -1,4 +1,5 @@
 use super::types::{Value, WaveValue, WaveformData};
+use indexmap::IndexMap;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_till1, take_until, take_while1},
@@ -30,7 +31,7 @@ pub fn parse_vcd_file<P: AsRef<Path>>(path: P) -> io::Result<WaveformData> {
     let reader = BufReader::new(file);
 
     let mut var_defs = HashMap::new();
-    let mut id_to_name = HashMap::new();
+    let mut id_to_name = IndexMap::new();
     let mut current_time = 0u64;
     let mut values: HashMap<String, Vec<(u64, WaveValue)>> = HashMap::new();
     let mut in_definitions = true;
@@ -42,7 +43,7 @@ pub fn parse_vcd_file<P: AsRef<Path>>(path: P) -> io::Result<WaveformData> {
         if line.starts_with("$var") {
             if let Ok((_, var_def)) = parse_var_declaration(line) {
                 var_defs.insert(var_def.id.clone(), var_def.clone());
-                id_to_name.insert(var_def.id, var_def.name);
+                id_to_name.insert(var_def.id.clone(), var_def.name.clone());
             }
         } else if line.starts_with("$enddefinitions") {
             in_definitions = false;
@@ -262,9 +263,11 @@ mod tests {
 
         // Check the parsed data
         assert_eq!(vcd_data.signals.len(), 3);
-        assert!(vcd_data.signals.contains(&"clk".to_string()));
-        assert!(vcd_data.signals.contains(&"reset".to_string()));
-        assert!(vcd_data.signals.contains(&"data".to_string()));
+
+        // Check that signals are in the same order as they appear in the VCD file
+        assert_eq!(vcd_data.signals[0], "clk");
+        assert_eq!(vcd_data.signals[1], "reset");
+        assert_eq!(vcd_data.signals[2], "data");
 
         assert_eq!(vcd_data.max_time, 20);
 
