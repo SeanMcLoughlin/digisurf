@@ -58,3 +58,77 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     app_result
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{app::App, config, types::AppMode};
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    // Utility function to create a test VCD file
+    fn create_test_vcd_file() -> NamedTempFile {
+        let temp_file = NamedTempFile::new().unwrap();
+
+        // Write a simple VCD file
+        let vcd_content = r#"
+    $date November 11, 2023 $end
+    $version Test VCD 1.0 $end
+    $timescale 1ps $end
+    $scope module test $end
+    $var wire 1 # clk $end
+    $var wire 1 $ reset $end
+    $var wire 8 % data $end
+    $upscope $end
+    $enddefinitions $end
+    $dumpvars
+    0#
+    1$
+    b00000000 %
+    $end
+    #10
+    1#
+    #20
+    0#
+    0$
+    b10101010 %
+        "#;
+
+        fs::write(&temp_file, vcd_content).unwrap();
+        temp_file
+    }
+
+    #[test]
+    fn test_load_vcd_file() {
+        config::load_config(None).unwrap();
+        let mut app = App::default();
+
+        // Load the VCD file
+        let result = app.load_vcd_file(&create_test_vcd_file());
+        assert!(result.is_ok());
+
+        // Check the loaded data
+        assert_eq!(app.state.waveform_data.signals.len(), 3);
+        assert_eq!(app.state.waveform_data.max_time, 20);
+
+        // Check the view is correctly set
+        assert_eq!(app.state.time_start, 0);
+        assert_eq!(app.state.time_range, 20);
+    }
+
+    #[test]
+    fn test_app_mode_transitions() {
+        config::load_config(None).unwrap();
+        let mut app = App::default();
+
+        // Initial mode should be Normal
+        assert_eq!(app.state.mode, AppMode::Normal);
+
+        // Test entering command mode
+        app.handle_input(config::read_config().keybindings.enter_command_mode);
+        assert_eq!(app.state.mode, AppMode::Command);
+
+        // Test exiting command mode
+        app.handle_command_input(config::read_config().keybindings.enter_normal_mode);
+        assert_eq!(app.state.mode, AppMode::Normal);
+    }
+}
