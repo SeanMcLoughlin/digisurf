@@ -370,4 +370,66 @@ mod tests {
         state.next_history();
         assert_eq!(state.input_buffer, "");
     }
+
+    #[test]
+    fn test_command_execution() {
+        let mut state = TestAppState {
+            command_state: CommandModeState::new(),
+        };
+
+        let mut command_widget = CommandModeWidget::new();
+
+        // Register a test command
+        command_widget.register_command(
+            CommandBuilder::new("test", "Test command", |args, _state| {
+                if args.is_empty() {
+                    Ok("No args".to_string())
+                } else {
+                    Ok(format!("Args: {}", args.join(",")))
+                }
+            })
+            .build(),
+        );
+
+        // Test with state updating
+        command_widget.register_command(
+            CommandBuilder::new(
+                "count",
+                "Count command",
+                |args, state: &mut TestAppState| {
+                    if let Some(arg) = args.get(0) {
+                        if let Ok(count) = arg.parse::<usize>() {
+                            for _ in 0..count {
+                                state.command_state_mut().input_buffer.push('x');
+                            }
+                            Ok(format!("Added {} characters", count))
+                        } else {
+                            Err("Not a number".to_string())
+                        }
+                    } else {
+                        Err("Missing count".to_string())
+                    }
+                },
+            )
+            .build(),
+        );
+
+        // Test command execution
+        let result = command_widget.parser().execute("test", &mut state);
+        assert_eq!(result, Ok("No args".to_string()));
+
+        let result = command_widget
+            .parser()
+            .execute("test arg1 arg2", &mut state);
+        assert_eq!(result, Ok("Args: arg1,arg2".to_string()));
+
+        // Test state-modifying command
+        let result = command_widget.parser().execute("count 3", &mut state);
+        assert_eq!(result, Ok("Added 3 characters".to_string()));
+        assert_eq!(state.command_state().input_buffer, "xxx");
+
+        // Test error handling
+        let result = command_widget.parser().execute("nonexistent", &mut state);
+        assert!(result.is_err());
+    }
 }
