@@ -183,12 +183,86 @@ pub fn load_config(path_override: Option<String>) -> Result<AppConfig, String> {
     }
 
     // Use default configuration if no config file was found or provided
+    Ok(load_default_config())
+}
+
+// Build an AppConfig::default() and set it to the global CONFIG variable. This is public so that
+// unit tests can access it.
+pub fn load_default_config() -> AppConfig {
     let default_config = AppConfig::default();
     let mut global_config = CONFIG.write().unwrap();
     *global_config = default_config.clone();
-    Ok(default_config)
+    default_config
 }
 
 pub fn read_config() -> AppConfig {
     CONFIG.read().unwrap().clone()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config::{load_config, AppConfig, CONFIG};
+    use crossterm::event::KeyCode;
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    fn setup() {
+        reset_config();
+    }
+
+    fn teardown() {
+        reset_config();
+    }
+
+    // Reset the global CONFIG to default after each test
+    fn reset_config() {
+        let default_config = AppConfig::default();
+        let mut global_config = CONFIG.write().unwrap();
+        *global_config = default_config;
+    }
+
+    #[test]
+    fn test_load_no_file_uses_default_config() {
+        setup();
+        let config = load_config(None).unwrap();
+        assert_eq!(config.ui.signal_list_width, 20);
+        assert_eq!(config.keybindings.zoom_in, KeyCode::Char('+'));
+        teardown();
+    }
+
+    #[test]
+    fn test_load_custom_config_uses_custom_values() {
+        setup();
+        let temp_file = NamedTempFile::new().unwrap();
+        let custom_config = r#"
+        [ui]
+        signal_list_width = 30
+
+        [keybindings]
+        zoom_in = { Char = "=" }
+        "#;
+        fs::write(&temp_file, custom_config).unwrap();
+
+        let config = load_config(Some(temp_file.path().to_str().unwrap().to_string())).unwrap();
+
+        // Custom values should be used
+        assert_eq!(config.ui.signal_list_width, 30);
+        assert_eq!(config.keybindings.zoom_in, KeyCode::Char('='));
+
+        // Other values should be defaults
+        assert_eq!(config.keybindings.zoom_out, KeyCode::Char('-'));
+
+        teardown();
+    }
+
+    #[test]
+    fn test_invalid_config_loading_returns_err() {
+        setup();
+
+        let temp_file = NamedTempFile::new().unwrap();
+        fs::write(&temp_file, "this is not valid TOML").unwrap();
+        assert!(load_config(Some(temp_file.path().to_str().unwrap().to_string())).is_err());
+
+        teardown();
+    }
 }

@@ -457,7 +457,7 @@ mod tests {
 
     #[test]
     fn test_render_empty_app() {
-        config::load_config(None).unwrap();
+        config::load_default_config();
         let mut app = App::default();
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
@@ -469,7 +469,7 @@ mod tests {
     #[test]
     fn test_render_app_with_test_data() {
         use crate::parsers::types::{Value, WaveValue};
-        config::load_config(None).unwrap();
+        config::load_default_config();
         let mut app = App::default();
 
         // Add some test data to the app state
