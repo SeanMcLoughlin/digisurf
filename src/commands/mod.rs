@@ -1,3 +1,4 @@
+mod find_signal;
 mod goto;
 mod help;
 mod marker;
@@ -19,10 +20,11 @@ impl<S> CommandRegistry<S> for crate::command_mode::CommandModeWidget<S> {
 }
 
 pub fn register_all_commands(registry: &mut impl CommandRegistry<AppState>) {
+    registry.register_command(find_signal::create());
+    registry.register_command(goto::create());
+    registry.register_command(help::create());
+    registry.register_command(marker::create());
+    registry.register_command(quit::create());
     registry.register_command(zoom::create());
     registry.register_command(zoomfull::create());
-    registry.register_command(goto::create());
-    registry.register_command(marker::create());
-    registry.register_command(help::create());
-    registry.register_command(quit::create());
 }

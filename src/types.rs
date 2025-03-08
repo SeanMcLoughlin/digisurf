@@ -3,4 +3,5 @@ pub enum AppMode {
     #[default]
     Normal,
     Command,
+    FuzzyFinder,
 }

@@ -1,6 +1,7 @@
 use crate::{
     command_mode::{state::CommandModeState, CommandModeStateAccess},
     config,
+    fuzzy_finder::{state::FuzzyFinderState, FuzzyFinderStateAccess},
     parsers::types::{WaveValue, WaveformData},
     types::AppMode,
 };
@@ -47,6 +48,10 @@ pub struct AppState {
     /// CommandModeStateAccess, so it is not public.
     command_mode_state: CommandModeState,
 
+    /// State of fuzzy finder to render. This is accessed via methods in a trait implementation of
+    /// FuzzyFinderStateAccess, so it is not public.
+    fuzzy_finder_state: FuzzyFinderState,
+
     /// Flag indicating that the help menu is currently being displayed
     pub show_help: bool,
 
@@ -56,6 +61,12 @@ pub struct AppState {
     /// Configuration state. Originally loaded from a file, but saved in app state so that the user
     /// can update configuration values while the application is running.
     pub config: config::AppConfig,
+
+    /// List of signals that are currently being displayed
+    pub displayed_signals: Vec<String>,
+
+    /// Flag indicating if signals have been loaded but not yet filtered/selected
+    pub signals_need_selection: bool,
 }
 
 // Access command mode state in the overall app state via a trait implementation
@@ -66,6 +77,16 @@ impl CommandModeStateAccess for AppState {
 
     fn command_state_mut(&mut self) -> &mut CommandModeState {
         &mut self.command_mode_state
+    }
+}
+
+impl FuzzyFinderStateAccess for AppState {
+    fn fuzzy_finder_state(&self) -> &FuzzyFinderState {
+        &self.fuzzy_finder_state
+    }
+
+    fn fuzzy_finder_state_mut(&mut self) -> &mut FuzzyFinderState {
+        &mut self.fuzzy_finder_state
     }
 }
 
@@ -154,6 +175,10 @@ impl AppState {
     }
 
     pub fn get_visible_values(&self, signal: &str) -> Vec<(u64, WaveValue)> {
+        if !self.displayed_signals.contains(&signal.to_string()) {
+            return Vec::new();
+        }
+
         if let Some(values) = self.waveform_data.values.get(signal) {
             values
                 .iter()

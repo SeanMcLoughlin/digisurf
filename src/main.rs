@@ -4,6 +4,7 @@ mod command_mode;
 mod commands;
 mod config;
 mod constants;
+mod fuzzy_finder;
 mod parsers;
 mod state;
 mod types;

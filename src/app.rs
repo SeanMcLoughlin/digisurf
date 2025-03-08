@@ -1,13 +1,16 @@
 use crate::{
     command_mode::{CommandModeStateAccess, CommandModeWidget},
-    commands, config, constants, parsers,
+    commands, config, constants,
+    fuzzy_finder::FuzzyFinderStateAccess,
+    parsers,
     state::AppState,
     types::AppMode,
     ui::{
         layout::{create_layout, AppLayout},
         widgets::{
-            bottom_text_box::BottomTextBoxWidget, help_menu::HelpMenuWidget,
-            signal_list::SignalListWidget, title_bar::TitleBarWidget, waveform::WaveformWidget,
+            bottom_text_box::BottomTextBoxWidget, fuzzy_finder::FuzzyFinderWidget,
+            help_menu::HelpMenuWidget, signal_list::SignalListWidget, title_bar::TitleBarWidget,
+            waveform::WaveformWidget,
         },
     },
 };
@@ -32,6 +35,7 @@ pub struct App {
     pub title_bar: TitleBarWidget,
     pub command_input: BottomTextBoxWidget,
     pub command_mode: CommandModeWidget<AppState>,
+    pub fuzzy_finder: FuzzyFinderWidget,
 }
 
 impl Default for App {
@@ -45,6 +49,7 @@ impl Default for App {
             title_bar: TitleBarWidget::default(),
             command_input: BottomTextBoxWidget::default(),
             command_mode: CommandModeWidget::new(),
+            fuzzy_finder: FuzzyFinderWidget::default(),
         };
         app.register_commands();
         app
@@ -54,6 +59,7 @@ impl Default for App {
 impl App {
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<(), Box<dyn Error>> {
         let tick_rate = Duration::from_millis(250);
+
         while !self.state.exit {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
 
@@ -78,6 +84,8 @@ impl App {
                             }
                         } else if self.state.mode == AppMode::Command {
                             self.handle_command_input(key.code);
+                        } else if self.state.mode == AppMode::FuzzyFinder {
+                            self.handle_fuzzy_finder_input(key);
                         } else {
                             self.handle_input(key.code);
                         }
@@ -103,6 +111,43 @@ impl App {
         commands::register_all_commands(&mut self.command_mode);
     }
 
+    fn handle_fuzzy_finder_input(&mut self, key: crossterm::event::KeyEvent) {
+        match key.code {
+            KeyCode::Esc => {
+                // Exit fuzzy finder mode without changing selections
+                self.state.mode = AppMode::Normal;
+            }
+            KeyCode::Enter => {
+                // Accept changed selections of signals
+                self.state.displayed_signals =
+                    self.state.fuzzy_finder_state().get_selected_signals();
+
+                // Ensure selected signal is within bounds
+                if self.state.selected_signal >= self.state.displayed_signals.len() {
+                    self.state.selected_signal = 0;
+                }
+                self.state.mode = AppMode::Normal;
+            }
+            KeyCode::Char(' ') => {
+                // Toggle selection of current signal
+                self.state.fuzzy_finder_state_mut().toggle_selected_signal();
+            }
+            KeyCode::Char('a') | KeyCode::Char('A') => {
+                // Select all filtered signals
+                self.state.fuzzy_finder_state_mut().select_all();
+            }
+            KeyCode::Char('c') | KeyCode::Char('C') => {
+                // Clear all selections
+                self.state.fuzzy_finder_state_mut().clear_selection();
+            }
+            KeyCode::Up => self.state.fuzzy_finder_state_mut().select_previous(),
+            KeyCode::Down => self.state.fuzzy_finder_state_mut().select_next(),
+            KeyCode::Backspace => self.state.fuzzy_finder_state_mut().handle_backspace(),
+            KeyCode::Char(c) => self.state.fuzzy_finder_state_mut().handle_input(c),
+            _ => {}
+        }
+    }
+
     pub fn handle_command_input(&mut self, key: KeyCode) {
         match key {
             k if k == config::read_config().keybindings.enter_normal_mode => {
@@ -114,7 +159,11 @@ impl App {
                 if executed {
                     self.state.command_state_mut().command_result_time =
                         Some(std::time::Instant::now());
-                    self.state.mode = AppMode::Normal;
+                    // If the command execution didn't switch modes, the app is still in Command
+                    // mode. So return to normal mode as the command has finished executing.
+                    if self.state.mode == AppMode::Command {
+                        self.state.mode = AppMode::Normal;
+                    }
                 }
             }
             // Let command mode handle all other keys
@@ -321,12 +370,17 @@ impl App {
         // Clear existing data
         self.state.waveform_data.signals.clear();
         self.state.waveform_data.values.clear();
+        self.state.displayed_signals.clear();
 
         // Parse the VCD file
         let waveform_data = parsers::vcd::parse_vcd_file(path)?;
 
         // Update the state with the parsed data
-        self.state.waveform_data.signals = waveform_data.signals;
+        let signals_clone = waveform_data.signals.clone();
+        self.state.waveform_data.signals = signals_clone.clone();
+        self.state
+            .fuzzy_finder_state_mut()
+            .set_signals(signals_clone, &[]);
         self.state.waveform_data.values = waveform_data.values;
         self.state.waveform_data.max_time = waveform_data.max_time;
 
@@ -348,7 +402,12 @@ impl Widget for &mut App {
             return; // Don't render the rest of the UI when help is shown
         }
 
-        // Regular UI rendering
+        if self.state.mode == AppMode::FuzzyFinder {
+            self.fuzzy_finder.render(area, buf, &mut self.state);
+            return; // Don't render the rest of the UI when fuzzy finder is shown
+        }
+
+        // Regular UI rendering - only show signals that are in displayed_signals
         self.signal_list
             .render(self.layout.signal_list, buf, &mut self.state);
         self.waveform

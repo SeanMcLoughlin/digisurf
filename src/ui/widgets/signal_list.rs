@@ -21,7 +21,8 @@ impl StatefulWidget for SignalListWidget {
         let waveform_height = 2; // Match the value in draw_waveforms
 
         // Now manually render each signal name at the proper position
-        for (idx, name) in state.waveform_data.signals.iter().enumerate() {
+        // Only render signals that are in displayed_signals
+        for (idx, name) in state.displayed_signals.iter().enumerate() {
             let y_position = inner_area.y + (idx as u16 * waveform_height);
 
             // Skip if we're outside the visible area
