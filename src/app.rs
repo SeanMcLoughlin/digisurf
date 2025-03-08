@@ -483,6 +483,14 @@ mod tests {
             .push("test_signal_2".to_string());
         app.state.waveform_data.max_time = 1000;
 
+        // Initialize displayed_signals with the same signals
+        app.state
+            .displayed_signals
+            .push("test_signal_1".to_string());
+        app.state
+            .displayed_signals
+            .push("test_signal_2".to_string());
+
         // Add some test values
         app.state.waveform_data.values.insert(
             "test_signal_1".to_string(),
