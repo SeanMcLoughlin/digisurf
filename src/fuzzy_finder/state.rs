@@ -131,3 +131,89 @@ impl FuzzyFinderState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fuzzy_finder_filtering() {
+        let mut state = FuzzyFinderState::default();
+
+        // Initialize with some signals
+        let signals = vec![
+            "test_signal_1".to_string(),
+            "test_signal_2".to_string(),
+            "another_signal".to_string(),
+            "control_pin".to_string(),
+        ];
+
+        state.set_signals(signals, &[]);
+
+        // Initial state should have all signals
+        assert_eq!(state.filtered_signals.len(), 4);
+
+        // Test basic filtering
+        state.query = "test".to_string();
+        state.update_filtered_signals();
+        assert_eq!(state.filtered_signals.len(), 2);
+        assert!(state
+            .filtered_signals
+            .contains(&"test_signal_1".to_string()));
+        assert!(state
+            .filtered_signals
+            .contains(&"test_signal_2".to_string()));
+
+        // Test fuzzy matching
+        state.query = "tsg".to_string(); // should match test_signal
+        state.update_filtered_signals();
+        assert!(state.filtered_signals.len() > 0);
+
+        // Test selection operations
+        state.query = "".to_string();
+        state.update_filtered_signals();
+
+        // Select an item
+        state.list_state.select(Some(0));
+        state.toggle_selected_signal();
+        assert_eq!(state.selected_signals.len(), 1);
+
+        // Select all
+        state.select_all();
+        assert_eq!(state.selected_signals.len(), 4);
+
+        // Clear all
+        state.clear_selection();
+        assert_eq!(state.selected_signals.len(), 0);
+    }
+
+    #[test]
+    fn test_fuzzy_finder_navigation() {
+        let mut state = FuzzyFinderState::default();
+
+        // Initialize with some signals
+        let signals = vec![
+            "signal1".to_string(),
+            "signal2".to_string(),
+            "signal3".to_string(),
+        ];
+
+        state.set_signals(signals, &[]);
+
+        // Test navigation
+        assert_eq!(state.list_state.selected(), Some(0));
+
+        state.select_next();
+        assert_eq!(state.list_state.selected(), Some(1));
+
+        state.select_previous();
+        assert_eq!(state.list_state.selected(), Some(0));
+
+        // Test wrap-around
+        state.select_previous();
+        assert_eq!(state.list_state.selected(), Some(2)); // Wrapped to last
+
+        state.select_next();
+        assert_eq!(state.list_state.selected(), Some(0)); // Wrapped to first
+    }
+}
