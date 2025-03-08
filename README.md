@@ -16,16 +16,19 @@ A TUI signal waveform viewer.
 - [ ] Fuzzy search for signal names
 - [-] FSDB parsing
   - FSDB is a proprietary format by Synopsys and you cannot use their FFT C API unless you have a license agreement with them, which I do not.
-- [ ] Wave DB file streaming for performance
+- [l] Wave DB file streaming for performance
+  - Very low priority
 - [x] Command mode
   - [ ] Tab complete
-  - [ ] Up arrow for previous commands
-  - [ ] Left/Right arrows to move cursor to different positions
+  - [x] Up arrow for previous commands
+  - [x] Left/Right arrows to move cursor to different positions
   - [ ] Ctrl-U clear backwards from cursor
   - [ ] Ctrl-W clears word before cursor
   - [ ] Ctrl-C exit
 - [ ] Color picker for each wave+signal, marker, etc.
-- [ ] Wave style for each wave
-- [ ] Embedded text editor, showing signal values at marker
+- [-] Wave style for each wave
+  - Doesn't look good.
+- [-] Embedded text editor, showing signal values at marker
+  - Requires some simulator output which I don't have.
 - [ ] Export signal selections and markers to config file of some sort
 - [ ] Export selection to SVG(?)
