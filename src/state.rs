@@ -194,3 +194,110 @@ impl AppState {
         &self.command_mode_state
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::parsers::types::{Value, WaveValue};
+    use crate::state::AppState;
+    use std::collections::HashMap;
+
+    fn create_test_state() -> AppState {
+        let mut state = AppState::new();
+
+        // Add test waveform data
+        state.waveform_data.signals = vec!["sig1".to_string(), "sig2".to_string()];
+        state.displayed_signals = vec!["sig1".to_string(), "sig2".to_string()];
+
+        // Add signal values
+        let mut values = HashMap::new();
+        values.insert(
+            "sig1".to_string(),
+            vec![
+                (0, WaveValue::Binary(Value::V0)),
+                (10, WaveValue::Binary(Value::V1)),
+                (20, WaveValue::Binary(Value::V0)),
+            ],
+        );
+        values.insert(
+            "sig2".to_string(),
+            vec![
+                (0, WaveValue::Binary(Value::V1)),
+                (15, WaveValue::Binary(Value::V0)),
+            ],
+        );
+
+        state.waveform_data.values = values;
+        state.waveform_data.max_time = 50;
+
+        state
+    }
+
+    #[test]
+    fn test_screen_pos_to_time_conversion() {
+        let mut state = create_test_state();
+        state.time_start = 0;
+        state.time_range = 100;
+
+        // Test different positions
+        assert_eq!(state.screen_pos_to_time(0, 100), 0); // left edge
+        assert_eq!(state.screen_pos_to_time(50, 100), 50); // middle
+        assert_eq!(state.screen_pos_to_time(100, 100), 100); // right edge
+
+        // Test with offset
+        state.time_start = 50;
+        assert_eq!(state.screen_pos_to_time(0, 100), 50);
+        assert_eq!(state.screen_pos_to_time(50, 100), 100);
+    }
+
+    #[test]
+    fn test_get_value_at_marker() {
+        let state = create_test_state();
+
+        // Test value at different times
+        assert_eq!(
+            state.get_value_at_marker("sig1", 0),
+            Some(WaveValue::Binary(Value::V0))
+        );
+
+        assert_eq!(
+            state.get_value_at_marker("sig1", 15),
+            Some(WaveValue::Binary(Value::V1))
+        );
+
+        // Test transition detection
+        assert_eq!(
+            state.get_transition_at_marker("sig1", 10),
+            Some("V0->V1".to_string())
+        );
+
+        // Test invalid signal
+        assert_eq!(state.get_value_at_marker("nonexistent", 0), None);
+    }
+
+    #[test]
+    fn test_get_visible_values() {
+        let mut state = create_test_state();
+
+        // All values visible
+        state.time_start = 0;
+        state.time_range = 50;
+        let visible = state.get_visible_values("sig1");
+        assert_eq!(visible.len(), 3);
+
+        // Partial visibility
+        state.time_start = 10;
+        state.time_range = 20;
+        let visible = state.get_visible_values("sig1");
+        assert_eq!(visible.len(), 2);
+
+        // No visibility
+        state.time_start = 30;
+        let visible = state.get_visible_values("sig1");
+        assert_eq!(visible.len(), 0);
+
+        // Test with non-displayed signal
+        state.displayed_signals = vec!["sig2".to_string()];
+        let visible = state.get_visible_values("sig1");
+        assert_eq!(visible.len(), 0);
+    }
+}
