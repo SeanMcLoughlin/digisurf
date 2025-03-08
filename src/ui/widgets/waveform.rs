@@ -328,3 +328,101 @@ impl StatefulWidget for WaveformWidget {
         self.draw_drag_selection(buf, area, &state);
     }
 }
+
+// Add to digisurf/src/ui/widgets/waveform.rs
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        parsers::types::{Value, WaveValue},
+        state::AppState,
+    };
+    use insta::assert_snapshot;
+    use ratatui::{backend::TestBackend, Terminal};
+    use std::collections::HashMap;
+
+    fn create_test_state() -> AppState {
+        let mut state = AppState::new();
+
+        // Add test waveform data
+        state.waveform_data.signals = vec!["sig1".to_string(), "sig2".to_string()];
+        state.displayed_signals = vec!["sig1".to_string(), "sig2".to_string()];
+
+        // Add signal values
+        let mut values = HashMap::new();
+        values.insert(
+            "sig1".to_string(),
+            vec![
+                (0, WaveValue::Binary(Value::V0)),
+                (10, WaveValue::Binary(Value::V1)),
+                (20, WaveValue::Binary(Value::V0)),
+            ],
+        );
+        values.insert(
+            "sig2".to_string(),
+            vec![
+                (0, WaveValue::Bus("00".to_string())),
+                (15, WaveValue::Bus("FF".to_string())),
+            ],
+        );
+
+        state.waveform_data.values = values;
+        state.waveform_data.max_time = 50;
+
+        state
+    }
+
+    #[test]
+    fn test_render_waveform() {
+        let mut state = create_test_state();
+        state.time_start = 0;
+        state.time_range = 50;
+
+        let widget = WaveformWidget::default();
+
+        // Create a test terminal
+        let backend = TestBackend::new(80, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        // Render the widget
+        terminal
+            .draw(|f| {
+                let size = f.area();
+                widget.render(size, &mut f.buffer_mut(), &mut state);
+            })
+            .unwrap();
+
+        // Verify the widget rendered something to the buffer
+        let buffer = terminal.backend().buffer();
+        assert!(buffer.content().len() > 0);
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_markers() {
+        let mut state = create_test_state();
+        state.time_start = 0;
+        state.time_range = 50;
+
+        // Set markers
+        state.primary_marker = Some(10);
+        state.secondary_marker = Some(20);
+
+        let widget = WaveformWidget::default();
+
+        // Create a test terminal
+        let backend = TestBackend::new(80, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        // Render the widget
+        terminal
+            .draw(|f| {
+                let size = f.area();
+                widget.render(size, &mut f.buffer_mut(), &mut state);
+            })
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+}
