@@ -1,4 +1,3 @@
-// src/commands/find_signal.rs
 use crate::{
     command_mode::{builder::CommandBuilder, registry::Command},
     state::AppState,
@@ -17,4 +16,19 @@ pub fn create() -> Rc<Box<dyn Command<AppState>>> {
     )
     .alias("fs")
     .build()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_findsignal_command() {
+        let command = create();
+        let mut state = AppState::default();
+        let result = command.execute(&[], &mut state);
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "Opening signal finder".to_string());
+    }
 }

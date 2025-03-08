@@ -36,3 +36,68 @@ pub fn create() -> Rc<Box<dyn Command<AppState>>> {
     )
     .build()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_state() -> AppState {
+        let mut state = AppState::default();
+        state.time_start = 0;
+        state.time_range = 100;
+        state.waveform_data.max_time = 1000;
+        state
+    }
+
+    #[test]
+    fn test_zoom_empty_args_is_err() {
+        let command = create();
+        let mut state = get_state();
+        let result = command.execute(&[], &mut state);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Usage: zoom <factor>".to_string());
+    }
+
+    #[test]
+    fn test_zoom_invalid_factor_is_err() {
+        let command = create();
+        let mut state = get_state();
+        let result = command.execute(&["not_a_number"], &mut state);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Invalid zoom factor".to_string());
+    }
+
+    #[test]
+    fn test_zoom_zero_factor_is_err() {
+        let command = create();
+        let mut state = get_state();
+        let result = command.execute(&["0"], &mut state);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Invalid zoom factor".to_string());
+    }
+
+    #[test]
+    fn test_zoom_valid_factor() {
+        let command = create();
+        let mut state = get_state();
+        state.time_start = 200;
+        state.time_range = 200;
+        let result = command.execute(&["2"], &mut state);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "Zoomed to 1/2".to_string());
+        assert_eq!(state.time_range, 500); // 1000 / 2
+        assert_eq!(state.time_start, 50); // center is 300, half_new_range is 250, so 300-250=50
+    }
+
+    #[test]
+    fn test_zoom_near_beginning() {
+        let command = create();
+        let mut state = get_state();
+        state.time_start = 0;
+        state.time_range = 100;
+        let result = command.execute(&["4"], &mut state);
+        assert!(result.is_ok());
+        assert_eq!(state.time_range, 250); // 1000 / 4
+        assert_eq!(state.time_start, 0); // Should clamp to 0 when center < half_new_range
+    }
+}
