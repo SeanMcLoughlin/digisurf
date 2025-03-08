@@ -276,14 +276,18 @@ impl App {
     fn handle_normal_mode(&mut self, key: KeyCode) {
         match key {
             k if k == config::read_config().keybindings.down => {
-                self.state.selected_signal =
-                    (self.state.selected_signal + 1) % self.state.waveform_data.signals.len();
+                if !self.state.displayed_signals.is_empty() {
+                    self.state.selected_signal =
+                        (self.state.selected_signal + 1) % self.state.displayed_signals.len();
+                }
             }
             k if k == config::read_config().keybindings.up => {
-                if self.state.selected_signal > 0 {
-                    self.state.selected_signal -= 1;
-                } else {
-                    self.state.selected_signal = self.state.waveform_data.signals.len() - 1;
+                if !self.state.displayed_signals.is_empty() {
+                    if self.state.selected_signal > 0 {
+                        self.state.selected_signal -= 1;
+                    } else {
+                        self.state.selected_signal = self.state.displayed_signals.len() - 1;
+                    }
                 }
             }
             k if k == config::read_config().keybindings.left => {
