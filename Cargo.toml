@@ -3,7 +3,6 @@ name = "digisurf"
 version = "0.1.0"
 edition = "2021"
 authors = ["Sean McLoughlin <smclough@protonmail.com>"]
-include = ["resources/**/*"]
 license-file = "LICENSE"
 description = "A TUI digital signal waveform viewer"
 repository = "https://github.com/SeanMcLoughlin/digisurf"
