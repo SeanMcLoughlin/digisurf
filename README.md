@@ -1,6 +1,7 @@
-# DigiSurf
+# DigiSurf: A TUI signal waveform viewer
 
-A TUI signal waveform viewer.
+[![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Build Status](https://github.com/SeanMcLoughlin/digisurf/actions/workflows/ci.yml/badge.svg)](https://github.com/SeanMcLoughlin/digisurf/actions/workflows/ci.yml)
 
 ## To Do
 
@@ -13,7 +14,7 @@ A TUI signal waveform viewer.
   - [x] Markers on click events
   - [ ] Saveable markers based on marker location of click event
 - [x] Zoom into selection of waves based on mouse click-and-drag selection
-- [ ] Fuzzy search for signal names
+- [x] Fuzzy search for signal names
 - [-] FSDB parsing
   - FSDB is a proprietary format by Synopsys and you cannot use their FFT C API unless you have a license agreement with them, which I do not.
 - [l] Wave DB file streaming for performance
