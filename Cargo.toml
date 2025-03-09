@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Sean McLoughlin <smclough@protonmail.com>"]
 include = ["resources/**/*"]
+license-file = "LICENSE"
+description = "A TUI digital signal waveform viewer"
+repository = "https://github.com/SeanMcLoughlin/digisurf"
+readme = "README.md"
 
 [dependencies]
 clap = { version = "4.5.31", features = ["derive"] }
