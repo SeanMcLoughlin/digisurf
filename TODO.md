@@ -1,0 +1,19 @@
+- [ ] A different way to represent time scale than "X to Y of Z" in the title
+- [x] Non-binary wave support (e.g. show values in hexadecimal instead of binary high/low)
+- [ ] Expand bus values in a tree structure in the signal list/waveform viewer
+- [x] X and Z support
+- [ ] Simple mouse events for clicking signal names to highlight them.
+- [ ] Markers
+  - [x] Markers on click events
+  - [ ] Saveable markers based on marker location of click event
+- [x] Zoom into selection of waves based on mouse click-and-drag selection
+- [x] Fuzzy search for signal names
+- [x] Command mode
+  - [ ] Tab complete
+  - [x] Up arrow for previous commands
+  - [x] Left/Right arrows to move cursor to different positions
+  - [ ] Ctrl-U clear backwards from cursor
+  - [ ] Ctrl-W clears word before cursor
+  - [ ] Ctrl-C exit
+- [ ] Color picker for each wave+signal, marker, etc.
+- [ ] Export signal selections and markers to config file of some sort
