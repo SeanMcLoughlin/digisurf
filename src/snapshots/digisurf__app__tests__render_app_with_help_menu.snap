@@ -1,0 +1,24 @@
+---
+source: src/app.rs
+expression: terminal.backend()
+---
+"     ┌Help [Scroll with Up/Down]──────────────────────────────────────────┐     "
+"     │'+' - Zoom in                                                       │     "
+"     │'-' - Zoom out                                                      │     "
+"     │'0' - Zoom full                                                     │     "
+"     │':' - Enter command mode                                            │     "
+"     │                                                                    │     "
+"     │Markers:                                                            │     "
+"     │Left Click - Place yellow marker (primary)                          │     "
+"     │Shift+Left Click - Place white marker (secondary)                   │     "
+"     │Delete - Remove primary marker                                      │     "
+"     │Backspace - Remove secondary marker                                 │     "
+"     │                                                                    │     "
+"     │Selection:                                                          │     "
+"     │Click and Drag - Zoom to selection                                  │     "
+"     │                                                                    │     "
+"     │Commands:                                                           │     "
+"     │:zoom <factor> - Zoom to 1/factor of total                          │     "
+"     │:zoomfull (:zf) - Zoom to full view                                 │     "
+"     │:goto <time> - Go to specific time                                  │     "
+"     └────────────────────────────────────────────────────────────────────┘     "

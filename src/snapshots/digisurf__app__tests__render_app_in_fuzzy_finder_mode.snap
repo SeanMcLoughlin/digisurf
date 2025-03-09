@@ -1,0 +1,24 @@
+---
+source: src/app.rs
+expression: terminal.backend()
+---
+"┌Signal Finder─────────────────────────────────────────────────────────────────┐"
+"│> sig                                                                         │"
+"│Selected: 1/4                                                                 │"
+"│[✓] signal_1                                                                  │"
+"│[ ] signal_2                                                                  │"
+"│[ ] test_signal                                                               │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│Up/Down: Navigate | Space: Toggle | A: Select All | C: Clear All | Enter: Done│"
+"└──────────────────────────────────────────────────────────────────────────────┘"

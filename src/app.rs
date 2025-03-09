@@ -449,9 +449,11 @@ impl Widget for &mut App {
 
 #[cfg(test)]
 mod tests {
-    use crate::config;
-
     use super::App;
+    use crate::{
+        command_mode::CommandModeStateAccess, config, fuzzy_finder::FuzzyFinderStateAccess,
+        types::AppMode,
+    };
     use insta::assert_snapshot;
     use ratatui::{backend::TestBackend, Terminal};
 
@@ -508,6 +510,128 @@ mod tests {
         app.state.time_start = 0;
         app.state.time_range = 1000;
         app.state.selected_signal = 0;
+
+        // Render the app
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_app_with_markers() {
+        use crate::parsers::types::{Value, WaveValue};
+        config::load_default_config();
+        let mut app = App::default();
+
+        // Add some test data
+        app.state.waveform_data.signals.push("signal".to_string());
+        app.state.displayed_signals.push("signal".to_string());
+        app.state.waveform_data.max_time = 100;
+        app.state.waveform_data.values.insert(
+            "signal".to_string(),
+            vec![
+                (0, WaveValue::Binary(Value::V0)),
+                (50, WaveValue::Binary(Value::V1)),
+            ],
+        );
+
+        // Set markers
+        app.state.primary_marker = Some(25);
+        app.state.secondary_marker = Some(75);
+
+        // Render the app
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_app_in_command_mode() {
+        config::load_default_config();
+        let mut app = App::default();
+
+        // Enter command mode
+        app.state.mode = AppMode::Command;
+        app.state.command_state_mut().input_buffer = "goto 50".to_string();
+        app.state.command_state_mut().cursor_position = 7; // Cursor after "goto 50"
+
+        // Render the app
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_app_with_command_result() {
+        config::load_default_config();
+        let mut app = App::default();
+
+        // Set a command result message
+        app.state.command_state_mut().result_message =
+            Some("Command executed successfully".to_string());
+        app.state.command_state_mut().result_is_error = false;
+        app.state.command_state_mut().command_result_time = Some(std::time::Instant::now());
+
+        // Render the app
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_app_with_help_menu() {
+        config::load_default_config();
+        let mut app = App::default();
+
+        // Show help menu
+        app.state.show_help = true;
+        app.state.help_menu_scroll = 5; // Scrolled down a bit
+
+        // Render the app
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_app_in_fuzzy_finder_mode() {
+        config::load_default_config();
+        let mut app = App::default();
+
+        // Setup signals
+        let signals = vec![
+            "signal_1".to_string(),
+            "signal_2".to_string(),
+            "test_signal".to_string(),
+            "data_bus".to_string(),
+        ];
+
+        // Enter fuzzy finder mode
+        app.state.mode = AppMode::FuzzyFinder;
+        app.state.fuzzy_finder_state_mut().set_signals(signals, &[]);
+
+        // Add a query and handle input character by character
+        for c in "sig".chars() {
+            app.state.fuzzy_finder_state_mut().handle_input(c);
+        }
+
+        // Select the first signal
+        app.state.fuzzy_finder_state_mut().toggle_selected_signal();
 
         // Render the app
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
