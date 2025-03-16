@@ -482,8 +482,81 @@ mod tests {
         command_mode::CommandModeStateAccess, config, fuzzy_finder::FuzzyFinderStateAccess,
         types::AppMode,
     };
+    use crossterm::event::KeyCode;
     use insta::assert_snapshot;
     use ratatui::{backend::TestBackend, Terminal};
+
+    fn setup_arrow_key_test_app(time_start: u64, time_range: u64) -> App {
+        use crate::parsers::types::{Value, WaveValue};
+        let mut app = App::with_config(config::AppConfig::default());
+
+        // Set up waveform data
+        app.state.waveform_data.max_time = 1000;
+        app.state.time_start = time_start;
+        app.state.time_range = time_range;
+
+        // Add test signals
+        app.state.waveform_data.signals = vec![
+            "clock".to_string(),
+            "data".to_string(),
+            "enable".to_string(),
+        ];
+
+        // Initialize displayed_signals with the same signals
+        app.state.displayed_signals = app.state.waveform_data.signals.clone();
+
+        // Clock signal with consistent pattern (50 time unit cycles)
+        let mut clock_values = Vec::new();
+        // Only add the time zero value if time_start isn't already zero
+        if time_start > 0 {
+            clock_values.push((0, WaveValue::Binary(Value::V0)));
+        }
+        clock_values.extend(vec![
+            (time_start, WaveValue::Binary(Value::V0)),
+            (time_start + 50, WaveValue::Binary(Value::V1)),
+            (time_start + 100, WaveValue::Binary(Value::V0)),
+            (time_start + 150, WaveValue::Binary(Value::V1)),
+            (time_start + 200, WaveValue::Binary(Value::V0)),
+        ]);
+        app.state
+            .waveform_data
+            .values
+            .insert("clock".to_string(), clock_values);
+
+        // Data signal with transitions
+        let mut data_values = Vec::new();
+        // Only add the time zero value if time_start isn't already zero
+        if time_start > 0 {
+            data_values.push((0, WaveValue::Binary(Value::V0)));
+        }
+        data_values.extend(vec![
+            (time_start, WaveValue::Binary(Value::V0)),
+            (time_start + 20, WaveValue::Binary(Value::V0)),
+            (time_start + 120, WaveValue::Binary(Value::V1)),
+            (time_start + 180, WaveValue::Binary(Value::V0)),
+        ]);
+        app.state
+            .waveform_data
+            .values
+            .insert("data".to_string(), data_values);
+
+        // Enable signal with one transition
+        let mut enable_values = Vec::new();
+        // Only add the time zero value if time_start isn't already zero
+        if time_start > 0 {
+            enable_values.push((0, WaveValue::Binary(Value::V0)));
+        }
+        enable_values.extend(vec![
+            (time_start, WaveValue::Binary(Value::V1)),
+            (time_start + 150, WaveValue::Binary(Value::V0)),
+        ]);
+        app.state
+            .waveform_data
+            .values
+            .insert("enable".to_string(), enable_values);
+
+        app
+    }
 
     #[test]
     fn test_render_empty_app() {
@@ -707,5 +780,157 @@ mod tests {
 
         // Verify app is now in normal mode
         assert_eq!(app.state.mode, AppMode::Normal);
+    }
+
+    #[test]
+    fn test_arrow_keys_with_empty_signal_list_do_not_panic() {
+        let mut app = App::with_config(config::AppConfig::default());
+
+        app.state.waveform_data.max_time = 1000;
+        app.state.displayed_signals = vec![];
+        app.state.selected_signal = 0;
+
+        app.handle_input(KeyCode::Up);
+        app.handle_input(KeyCode::Down);
+        app.handle_input(KeyCode::Left);
+        app.handle_input(KeyCode::Right);
+    }
+
+    #[test]
+    fn test_arrow_keys_up_down_signal_selection() {
+        let mut app = App::with_config(config::AppConfig::default());
+
+        app.state.displayed_signals = vec![
+            "signal_1".to_string(),
+            "signal_2".to_string(),
+            "signal_3".to_string(),
+        ];
+
+        // Start at the first signal
+        app.state.selected_signal = 0;
+
+        app.handle_input(KeyCode::Down);
+        assert_eq!(app.state.selected_signal, 1);
+
+        app.handle_input(KeyCode::Down);
+        assert_eq!(app.state.selected_signal, 2);
+
+        // Selected signal should wrap
+        app.handle_input(KeyCode::Down);
+        assert_eq!(app.state.selected_signal, 0);
+
+        app.handle_input(KeyCode::Up);
+        assert_eq!(app.state.selected_signal, 2);
+
+        app.handle_input(KeyCode::Up);
+        assert_eq!(app.state.selected_signal, 1);
+
+        app.handle_input(KeyCode::Up);
+        assert_eq!(app.state.selected_signal, 0);
+
+        // Selected signal should wrap
+        app.handle_input(KeyCode::Up);
+        assert_eq!(app.state.selected_signal, 2);
+    }
+
+    #[test]
+    fn test_arrow_keys_left_once() {
+        let mut app = setup_arrow_key_test_app(400, 200);
+        app.handle_input(KeyCode::Left);
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_arrow_keys_left_twice() {
+        let mut app = setup_arrow_key_test_app(400, 200);
+
+        for _ in 0..2 {
+            app.handle_input(KeyCode::Left);
+        }
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_arrow_keys_right_once() {
+        let mut app = setup_arrow_key_test_app(400, 200);
+        app.handle_input(KeyCode::Right);
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_arrow_keys_right_twice() {
+        let mut app = setup_arrow_key_test_app(400, 200);
+
+        for _ in 0..2 {
+            app.handle_input(KeyCode::Right);
+        }
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_arrow_keys_right_twice_then_left_once() {
+        let mut app = setup_arrow_key_test_app(400, 200);
+
+        for _ in 0..2 {
+            app.handle_input(KeyCode::Right);
+        }
+        app.handle_input(KeyCode::Left);
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_arrow_keys_left_at_time_start_does_not_move() {
+        let mut app = setup_arrow_key_test_app(0, 200);
+        app.handle_input(KeyCode::Left);
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_arrow_keys_right_at_time_end_does_not_move() {
+        let mut app = setup_arrow_key_test_app(800, 200);
+        app.handle_input(KeyCode::Right);
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
     }
 }
