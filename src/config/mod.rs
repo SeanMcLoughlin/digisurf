@@ -1,10 +1,8 @@
 mod defaults;
 use crossterm::event::KeyCode;
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::RwLock;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {
@@ -107,10 +105,6 @@ impl Default for KeybindingsConfig {
     }
 }
 
-lazy_static! {
-    pub static ref CONFIG: RwLock<AppConfig> = RwLock::new(AppConfig::default());
-}
-
 /// Loads application configuration from a file.
 ///
 /// This function handles loading application configuration with the following priorities:
@@ -118,8 +112,6 @@ lazy_static! {
 /// 2. From the default config location (platform-specific user config directory following XDG Base
 ///    Directory Specification)
 /// 3. Use default configuration values if no config file exists
-///
-/// The loaded configuration is stored in the global `CONFIG` static for application-wide access.
 ///
 /// # Arguments
 /// * `path_override` - Optional path to a configuration file that overrides the default location
@@ -137,9 +129,6 @@ pub fn load_config(path_override: Option<String>) -> Result<AppConfig, String> {
                     Ok(mut loaded_config) => {
                         // Store the path in the config
                         loaded_config.config_path = Some(path);
-
-                        let mut global_config = CONFIG.write().unwrap();
-                        *global_config = loaded_config.clone();
                         return Ok(loaded_config);
                     }
                     Err(e) => {
@@ -166,9 +155,6 @@ pub fn load_config(path_override: Option<String>) -> Result<AppConfig, String> {
                     Ok(mut loaded_config) => {
                         // Store the path in the config
                         loaded_config.config_path = Some(config_path);
-
-                        let mut global_config = CONFIG.write().unwrap();
-                        *global_config = loaded_config.clone();
                         return Ok(loaded_config);
                     }
                     Err(e) => {
@@ -183,56 +169,25 @@ pub fn load_config(path_override: Option<String>) -> Result<AppConfig, String> {
     }
 
     // Use default configuration if no config file was found or provided
-    Ok(load_default_config())
-}
-
-// Build an AppConfig::default() and set it to the global CONFIG variable. This is public so that
-// unit tests can access it.
-pub fn load_default_config() -> AppConfig {
-    let default_config = AppConfig::default();
-    let mut global_config = CONFIG.write().unwrap();
-    *global_config = default_config.clone();
-    default_config
-}
-
-pub fn read_config() -> AppConfig {
-    CONFIG.read().unwrap().clone()
+    Ok(AppConfig::default())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{load_config, AppConfig, CONFIG};
+    use super::*;
     use crossterm::event::KeyCode;
     use std::fs;
     use tempfile::NamedTempFile;
 
-    fn setup() {
-        reset_config();
-    }
-
-    fn teardown() {
-        reset_config();
-    }
-
-    // Reset the global CONFIG to default after each test
-    fn reset_config() {
-        let default_config = AppConfig::default();
-        let mut global_config = CONFIG.write().unwrap();
-        *global_config = default_config;
-    }
-
     #[test]
     fn test_load_no_file_uses_default_config() {
-        setup();
         let config = load_config(None).unwrap();
         assert_eq!(config.ui.signal_list_width, 20);
         assert_eq!(config.keybindings.zoom_in, KeyCode::Char('+'));
-        teardown();
     }
 
     #[test]
     fn test_load_custom_config_uses_custom_values() {
-        setup();
         let temp_file = NamedTempFile::new().unwrap();
         let custom_config = r#"
         [ui]
@@ -251,18 +206,12 @@ mod tests {
 
         // Other values should be defaults
         assert_eq!(config.keybindings.zoom_out, KeyCode::Char('-'));
-
-        teardown();
     }
 
     #[test]
     fn test_invalid_config_loading_returns_err() {
-        setup();
-
         let temp_file = NamedTempFile::new().unwrap();
         fs::write(&temp_file, "this is not valid TOML").unwrap();
         assert!(load_config(Some(temp_file.path().to_str().unwrap().to_string())).is_err());
-
-        teardown();
     }
 }

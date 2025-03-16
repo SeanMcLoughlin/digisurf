@@ -9,7 +9,7 @@ pub struct AppLayout {
     pub command_bar: Rect,
 }
 
-pub fn create_layout(area: Rect) -> AppLayout {
+pub fn create_layout(area: Rect, config: &config::AppConfig) -> AppLayout {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(
@@ -27,8 +27,8 @@ pub fn create_layout(area: Rect) -> AppLayout {
         .direction(Direction::Horizontal)
         .constraints(
             [
-                Constraint::Percentage(config::read_config().ui.signal_list_width),
-                Constraint::Percentage(100 - config::read_config().ui.signal_list_width),
+                Constraint::Percentage(config.ui.signal_list_width),
+                Constraint::Percentage(100 - config.ui.signal_list_width),
             ]
             .as_ref(),
         )

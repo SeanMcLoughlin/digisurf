@@ -5,6 +5,7 @@ use crate::{
     parsers::types::{WaveValue, WaveformData},
     types::AppMode,
 };
+use std::collections::HashSet;
 
 #[derive(Default)]
 pub struct AppState {
@@ -67,6 +68,12 @@ pub struct AppState {
 
     /// Flag indicating if signals have been loaded but not yet filtered/selected
     pub signals_need_selection: bool,
+
+    /// Set of signals that are currently selected in visual mode
+    pub selected_signals: HashSet<usize>,
+
+    /// Visual mode start position - used for determining selection range
+    pub visual_start: Option<usize>,
 }
 
 // Access command mode state in the overall app state via a trait implementation
@@ -94,7 +101,8 @@ impl AppState {
     pub fn new() -> Self {
         let mut app_state = AppState::default();
         app_state.time_range = 50;
-        app_state.config = config::read_config();
+        app_state.config =
+            config::load_config(None).unwrap_or_else(|_| config::AppConfig::default());
         app_state
     }
 

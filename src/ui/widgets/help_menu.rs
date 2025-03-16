@@ -1,4 +1,4 @@
-use crate::{config, state::AppState};
+use crate::state::AppState;
 use crossterm::event::KeyCode;
 use ratatui::{
     prelude::{Buffer, Rect},
@@ -57,16 +57,16 @@ impl StatefulWidget for HelpMenuWidget {
             Help Navigation:\n\
             Up/Down arrows - Scroll help content\n\
             Esc - Close help",
-            self.key_to_string(&config::read_config().keybindings.up),
-            self.key_to_string(&config::read_config().keybindings.down),
-            self.key_to_string(&config::read_config().keybindings.left),
-            self.key_to_string(&config::read_config().keybindings.right),
-            self.key_to_string(&config::read_config().keybindings.zoom_in),
-            self.key_to_string(&config::read_config().keybindings.zoom_out),
-            self.key_to_string(&config::read_config().keybindings.zoom_full),
-            self.key_to_string(&config::read_config().keybindings.enter_command_mode),
-            self.key_to_string(&config::read_config().keybindings.delete_primary_marker),
-            self.key_to_string(&config::read_config().keybindings.delete_secondary_marker)
+            self.key_to_string(&state.config.keybindings.up),
+            self.key_to_string(&state.config.keybindings.down),
+            self.key_to_string(&state.config.keybindings.left),
+            self.key_to_string(&state.config.keybindings.right),
+            self.key_to_string(&state.config.keybindings.zoom_in),
+            self.key_to_string(&state.config.keybindings.zoom_out),
+            self.key_to_string(&state.config.keybindings.zoom_full),
+            self.key_to_string(&state.config.keybindings.enter_command_mode),
+            self.key_to_string(&state.config.keybindings.delete_primary_marker),
+            self.key_to_string(&state.config.keybindings.delete_secondary_marker)
         );
 
         // Calculate a centered rectangle for the help menu

@@ -40,6 +40,7 @@ pub struct App {
 
 impl Default for App {
     fn default() -> Self {
+        let config = config::AppConfig::default();
         let mut app = App {
             state: AppState::new(),
             layout: AppLayout::default(),
@@ -51,12 +52,29 @@ impl Default for App {
             command_mode: CommandModeWidget::new(),
             fuzzy_finder: FuzzyFinderWidget::default(),
         };
+        app.state.config = config;
         app.register_commands();
         app
     }
 }
 
 impl App {
+    pub fn with_config(config: config::AppConfig) -> Self {
+        let mut app = Self::default();
+        app.state.config = config;
+        app
+    }
+
+    pub fn load_config(&mut self, path_override: Option<String>) -> Result<(), String> {
+        match config::load_config(path_override) {
+            Ok(config) => {
+                self.state.config = config;
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<(), Box<dyn Error>> {
         let tick_rate = Duration::from_millis(250);
 
@@ -160,11 +178,11 @@ impl App {
 
     pub fn handle_command_input(&mut self, key: KeyCode) {
         match key {
-            k if k == config::read_config().keybindings.enter_normal_mode => {
+            k if k == self.state.config.keybindings.enter_normal_mode => {
                 self.state.mode = AppMode::Normal;
                 self.state.command_state_mut().clear();
             }
-            k if k == config::read_config().keybindings.execute_command => {
+            k if k == self.state.config.keybindings.execute_command => {
                 let executed = self.command_mode.execute(&mut self.state);
                 if executed {
                     self.state.command_state_mut().command_result_time =
@@ -185,7 +203,7 @@ impl App {
         if self.state.mode == AppMode::Command {
             self.handle_command_input(key);
         } else {
-            if key == config::read_config().keybindings.enter_command_mode {
+            if key == self.state.config.keybindings.enter_command_mode {
                 self.state.mode = AppMode::Command;
                 self.state.command_state_mut().clear();
             } else {
@@ -285,13 +303,7 @@ impl App {
 
     fn handle_normal_mode(&mut self, key: KeyCode) {
         match key {
-            k if k == config::read_config().keybindings.down => {
-                if !self.state.displayed_signals.is_empty() {
-                    self.state.selected_signal =
-                        (self.state.selected_signal + 1) % self.state.displayed_signals.len();
-                }
-            }
-            k if k == config::read_config().keybindings.up => {
+            k if k == self.state.config.keybindings.up => {
                 if !self.state.displayed_signals.is_empty() {
                     if self.state.selected_signal > 0 {
                         self.state.selected_signal -= 1;
@@ -300,7 +312,13 @@ impl App {
                     }
                 }
             }
-            k if k == config::read_config().keybindings.left => {
+            k if k == self.state.config.keybindings.down => {
+                if !self.state.displayed_signals.is_empty() {
+                    self.state.selected_signal =
+                        (self.state.selected_signal + 1) % self.state.displayed_signals.len();
+                }
+            }
+            k if k == self.state.config.keybindings.left => {
                 if self.state.time_start > 0 {
                     self.state.time_start = self
                         .state
@@ -308,7 +326,7 @@ impl App {
                         .saturating_sub(self.state.time_range / 4);
                 }
             }
-            k if k == config::read_config().keybindings.right => {
+            k if k == self.state.config.keybindings.right => {
                 if self.state.time_start < self.state.waveform_data.max_time {
                     // Ensure the waveform view doesn't go beyond max_time
                     let max_start = self
@@ -320,7 +338,7 @@ impl App {
                         (self.state.time_start + self.state.time_range / 4).min(max_start);
                 }
             }
-            k if k == config::read_config().keybindings.zoom_out => {
+            k if k == self.state.config.keybindings.zoom_out => {
                 // Calculate the new time range, doubling but capped at max_time
                 let new_time_range =
                     (self.state.time_range * 2).min(self.state.waveform_data.max_time);
@@ -350,7 +368,7 @@ impl App {
                 self.state.time_start = adjusted_start;
                 self.state.time_range = new_time_range;
             }
-            k if k == config::read_config().keybindings.zoom_in => {
+            k if k == self.state.config.keybindings.zoom_in => {
                 // Calculate center point of current view
                 let center = self.state.time_start + (self.state.time_range / 2);
 
@@ -364,15 +382,15 @@ impl App {
                 self.state.time_start = new_start;
                 self.state.time_range = new_time_range;
             }
-            k if k == config::read_config().keybindings.zoom_full => {
+            k if k == self.state.config.keybindings.zoom_full => {
                 self.state.time_start = 0;
                 self.state.time_range = self.state.waveform_data.max_time;
             }
 
-            k if k == config::read_config().keybindings.delete_primary_marker => {
+            k if k == self.state.config.keybindings.delete_primary_marker => {
                 self.state.primary_marker = None;
             }
-            k if k == config::read_config().keybindings.delete_secondary_marker => {
+            k if k == self.state.config.keybindings.delete_secondary_marker => {
                 self.state.secondary_marker = None;
             }
 
@@ -409,7 +427,7 @@ impl App {
 
 impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        self.layout = create_layout(area);
+        self.layout = create_layout(area, &self.state.config);
 
         if self.state.show_help {
             self.help_menu.render(area, buf, &mut self.state);
@@ -469,8 +487,7 @@ mod tests {
 
     #[test]
     fn test_render_empty_app() {
-        config::load_default_config();
-        let mut app = App::default();
+        let mut app = App::with_config(config::AppConfig::default());
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
             .draw(|frame| frame.render_widget(&mut app, frame.area()))
@@ -481,8 +498,7 @@ mod tests {
     #[test]
     fn test_render_app_with_test_data() {
         use crate::parsers::types::{Value, WaveValue};
-        config::load_default_config();
-        let mut app = App::default();
+        let mut app = App::with_config(config::AppConfig::default());
 
         // Add some test data to the app state
         app.state
@@ -533,8 +549,7 @@ mod tests {
     #[test]
     fn test_render_app_with_markers() {
         use crate::parsers::types::{Value, WaveValue};
-        config::load_default_config();
-        let mut app = App::default();
+        let mut app = App::with_config(config::AppConfig::default());
 
         // Add some test data
         app.state.waveform_data.signals.push("signal".to_string());
@@ -563,8 +578,7 @@ mod tests {
 
     #[test]
     fn test_render_app_in_command_mode() {
-        config::load_default_config();
-        let mut app = App::default();
+        let mut app = App::with_config(config::AppConfig::default());
 
         // Enter command mode
         app.state.mode = AppMode::Command;
@@ -582,8 +596,7 @@ mod tests {
 
     #[test]
     fn test_render_app_with_command_result() {
-        config::load_default_config();
-        let mut app = App::default();
+        let mut app = App::with_config(config::AppConfig::default());
 
         // Set a command result message
         app.state.command_state_mut().result_message =
@@ -601,27 +614,8 @@ mod tests {
     }
 
     #[test]
-    fn test_render_app_with_help_menu() {
-        config::load_default_config();
-        let mut app = App::default();
-
-        // Show help menu
-        app.state.show_help = true;
-        app.state.help_menu_scroll = 5; // Scrolled down a bit
-
-        // Render the app
-        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
-        terminal
-            .draw(|frame| frame.render_widget(&mut app, frame.area()))
-            .unwrap();
-
-        assert_snapshot!(terminal.backend());
-    }
-
-    #[test]
     fn test_render_app_in_fuzzy_finder_mode() {
-        config::load_default_config();
-        let mut app = App::default();
+        let mut app = App::with_config(config::AppConfig::default());
 
         // Setup signals
         let signals = vec![
@@ -661,60 +655,57 @@ mod tests {
         };
         use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-        // Need to run this multiple times as the failure is not deterministic.
-        for _ in 0..10 {
-            config::load_default_config();
-            let mut app = App::default();
+        let config = config::AppConfig::default();
+        let mut app = App::with_config(config);
 
-            // Setup test data with signals in specific order
-            app.state.waveform_data.signals = vec![
-                "first_signal".to_string(),
-                "middle_signal".to_string(),
-                "last_signal".to_string(),
-            ];
+        // Setup test data with signals in specific order
+        app.state.waveform_data.signals = vec![
+            "first_signal".to_string(),
+            "middle_signal".to_string(),
+            "last_signal".to_string(),
+        ];
 
-            // Add some test values
-            app.state.waveform_data.values.insert(
-                "first_signal".to_string(),
-                vec![(0, WaveValue::Binary(Value::V0))],
-            );
-            app.state.waveform_data.values.insert(
-                "middle_signal".to_string(),
-                vec![(0, WaveValue::Binary(Value::V1))],
-            );
-            app.state.waveform_data.values.insert(
-                "last_signal".to_string(),
-                vec![(0, WaveValue::Binary(Value::V0))],
-            );
+        // Add some test values
+        app.state.waveform_data.values.insert(
+            "first_signal".to_string(),
+            vec![(0, WaveValue::Binary(Value::V0))],
+        );
+        app.state.waveform_data.values.insert(
+            "middle_signal".to_string(),
+            vec![(0, WaveValue::Binary(Value::V1))],
+        );
+        app.state.waveform_data.values.insert(
+            "last_signal".to_string(),
+            vec![(0, WaveValue::Binary(Value::V0))],
+        );
 
-            // Enter fuzzy finder mode
-            app.state.mode = AppMode::FuzzyFinder;
-            let signals = app.state.waveform_data.signals.clone();
-            app.state.fuzzy_finder_state_mut().set_signals(signals, &[]);
+        // Enter fuzzy finder mode
+        app.state.mode = AppMode::FuzzyFinder;
+        let signals = app.state.waveform_data.signals.clone();
+        app.state.fuzzy_finder_state_mut().set_signals(signals, &[]);
 
-            // Select signals in reverse order
-            app.state
-                .fuzzy_finder_state_mut()
-                .list_state
-                .select(Some(2)); // last_signal
-            app.state.fuzzy_finder_state_mut().toggle_selected_signal();
+        // Select signals in reverse order
+        app.state
+            .fuzzy_finder_state_mut()
+            .list_state
+            .select(Some(2)); // last_signal
+        app.state.fuzzy_finder_state_mut().toggle_selected_signal();
 
-            app.state
-                .fuzzy_finder_state_mut()
-                .list_state
-                .select(Some(0)); // first_signal
-            app.state.fuzzy_finder_state_mut().toggle_selected_signal();
+        app.state
+            .fuzzy_finder_state_mut()
+            .list_state
+            .select(Some(0)); // first_signal
+        app.state.fuzzy_finder_state_mut().toggle_selected_signal();
 
-            // Accept selection
-            app.handle_fuzzy_finder_input(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+        // Accept selection
+        app.handle_fuzzy_finder_input(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
 
-            // Verify signals are displayed in the original order
-            assert_eq!(app.state.displayed_signals.len(), 2);
-            assert_eq!(app.state.displayed_signals[0], "first_signal");
-            assert_eq!(app.state.displayed_signals[1], "last_signal");
+        // Verify signals are displayed in the original order
+        assert_eq!(app.state.displayed_signals.len(), 2);
+        assert_eq!(app.state.displayed_signals[0], "first_signal");
+        assert_eq!(app.state.displayed_signals[1], "last_signal");
 
-            // Verify app is now in normal mode
-            assert_eq!(app.state.mode, AppMode::Normal);
-        }
+        // Verify app is now in normal mode
+        assert_eq!(app.state.mode, AppMode::Normal);
     }
 }

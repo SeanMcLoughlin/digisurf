@@ -21,9 +21,9 @@ use std::{error::Error, io};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = CliArgs::parse();
-    config::load_config(args.config_file)?;
+    let config = config::load_config(args.config_file)?;
 
-    let mut app = App::default();
+    let mut app = App::with_config(config);
     if let Some(file_path) = args.file_name {
         let result = if file_path.ends_with(".vcd") {
             app.load_vcd_file(file_path)
@@ -99,8 +99,7 @@ mod tests {
 
     #[test]
     fn test_load_vcd_file() {
-        config::load_config(None).unwrap();
-        let mut app = App::default();
+        let mut app = App::with_config(config::load_config(None).unwrap());
 
         // Load the VCD file
         let result = app.load_vcd_file(&create_test_vcd_file());
@@ -117,18 +116,17 @@ mod tests {
 
     #[test]
     fn test_app_mode_transitions() {
-        config::load_config(None).unwrap();
-        let mut app = App::default();
+        let mut app = App::with_config(config::load_config(None).unwrap());
 
         // Initial mode should be Normal
         assert_eq!(app.state.mode, AppMode::Normal);
 
         // Test entering command mode
-        app.handle_input(config::read_config().keybindings.enter_command_mode);
+        app.handle_input(app.state.config.keybindings.enter_command_mode);
         assert_eq!(app.state.mode, AppMode::Command);
 
         // Test exiting command mode
-        app.handle_command_input(config::read_config().keybindings.enter_normal_mode);
+        app.handle_command_input(app.state.config.keybindings.enter_normal_mode);
         assert_eq!(app.state.mode, AppMode::Normal);
     }
 }
