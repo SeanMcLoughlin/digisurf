@@ -173,7 +173,7 @@ impl AppState {
     fn format_transition(&self, before: &WaveValue, after: &WaveValue) -> String {
         match (before, after) {
             (WaveValue::Binary(v1), WaveValue::Binary(v2)) => {
-                format!("{:?}->{:?}", v1, v2)
+                format!("{}->{}", v1, v2)
             }
             (WaveValue::Bus(v1), WaveValue::Bus(v2)) => {
                 format!("{}->{}", v1, v2)
@@ -296,7 +296,7 @@ mod tests {
         // Test transition detection
         assert_eq!(
             state.get_transition_at_marker("sig1", 10),
-            Some("V0->V1".to_string())
+            Some("0->1".to_string())
         );
 
         // Test invalid signal

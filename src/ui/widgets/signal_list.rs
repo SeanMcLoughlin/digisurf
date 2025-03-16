@@ -79,7 +79,7 @@ impl StatefulWidget for SignalListWidget {
                 // Show current value if no transition
                 if let Some(value) = state.get_value_at_marker(name, marker_time) {
                     let value_text = match value {
-                        WaveValue::Binary(v) => format!("{:?}", v),
+                        WaveValue::Binary(v) => format!("{}", v),
                         WaveValue::Bus(s) => s,
                     };
 
