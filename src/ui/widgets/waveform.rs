@@ -174,7 +174,7 @@ impl WaveformWidget {
         let time_start = state.time_start;
         let time_range = state.time_range;
 
-        for (idx, signal_name) in state.waveform_data.signals.iter().enumerate() {
+        for (idx, signal_name) in state.displayed_signals.iter().enumerate() {
             let signal_area = Rect::new(
                 area.x,
                 area.y + (idx as u16 * waveform_height),
