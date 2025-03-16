@@ -118,9 +118,19 @@ impl App {
                 self.state.mode = AppMode::Normal;
             }
             KeyCode::Enter => {
-                // Accept changed selections of signals
-                self.state.displayed_signals =
-                    self.state.fuzzy_finder_state().get_selected_signals();
+                // Get selected signals
+                let selected_signals = self.state.fuzzy_finder_state().get_selected_signals();
+
+                // Maintain original signal order from waveform_data
+                let mut displayed_signals = Vec::new();
+                for signal in &self.state.waveform_data.signals {
+                    if selected_signals.contains(signal) {
+                        displayed_signals.push(signal.clone());
+                    }
+                }
+
+                // Set the displayed signals in the original order
+                self.state.displayed_signals = displayed_signals;
 
                 // Ensure selected signal is within bounds
                 if self.state.selected_signal >= self.state.displayed_signals.len() {
@@ -640,5 +650,71 @@ mod tests {
             .unwrap();
 
         assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_fuzzy_finder_maintains_signal_order() {
+        use crate::{
+            fuzzy_finder::FuzzyFinderStateAccess,
+            parsers::types::{Value, WaveValue},
+            types::AppMode,
+        };
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+        // Need to run this multiple times as the failure is not deterministic.
+        for _ in 0..10 {
+            config::load_default_config();
+            let mut app = App::default();
+
+            // Setup test data with signals in specific order
+            app.state.waveform_data.signals = vec![
+                "first_signal".to_string(),
+                "middle_signal".to_string(),
+                "last_signal".to_string(),
+            ];
+
+            // Add some test values
+            app.state.waveform_data.values.insert(
+                "first_signal".to_string(),
+                vec![(0, WaveValue::Binary(Value::V0))],
+            );
+            app.state.waveform_data.values.insert(
+                "middle_signal".to_string(),
+                vec![(0, WaveValue::Binary(Value::V1))],
+            );
+            app.state.waveform_data.values.insert(
+                "last_signal".to_string(),
+                vec![(0, WaveValue::Binary(Value::V0))],
+            );
+
+            // Enter fuzzy finder mode
+            app.state.mode = AppMode::FuzzyFinder;
+            let signals = app.state.waveform_data.signals.clone();
+            app.state.fuzzy_finder_state_mut().set_signals(signals, &[]);
+
+            // Select signals in reverse order
+            app.state
+                .fuzzy_finder_state_mut()
+                .list_state
+                .select(Some(2)); // last_signal
+            app.state.fuzzy_finder_state_mut().toggle_selected_signal();
+
+            app.state
+                .fuzzy_finder_state_mut()
+                .list_state
+                .select(Some(0)); // first_signal
+            app.state.fuzzy_finder_state_mut().toggle_selected_signal();
+
+            // Accept selection
+            app.handle_fuzzy_finder_input(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+
+            // Verify signals are displayed in the original order
+            assert_eq!(app.state.displayed_signals.len(), 2);
+            assert_eq!(app.state.displayed_signals[0], "first_signal");
+            assert_eq!(app.state.displayed_signals[1], "last_signal");
+
+            // Verify app is now in normal mode
+            assert_eq!(app.state.mode, AppMode::Normal);
+        }
     }
 }
