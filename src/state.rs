@@ -188,11 +188,32 @@ impl AppState {
         }
 
         if let Some(values) = self.waveform_data.values.get(signal) {
-            values
-                .iter()
-                .filter(|(t, _)| *t >= self.time_start && *t < self.time_start + self.time_range)
-                .cloned()
-                .collect()
+            let mut result = Vec::new();
+
+            // Find the last value before the visible range
+            let mut last_before_view = None;
+            for (t, v) in values {
+                if *t < self.time_start {
+                    last_before_view = Some((*t, v.clone()));
+                } else {
+                    break;
+                }
+            }
+
+            // Add the last value before the view with an adjusted timestamp
+            // to ensure it appears at the left edge of the view
+            if let Some((_, v)) = last_before_view {
+                result.push((self.time_start, v));
+            }
+
+            // Add all values within the view range
+            for (t, v) in values {
+                if *t >= self.time_start && *t < self.time_start + self.time_range {
+                    result.push((*t, v.clone()));
+                }
+            }
+
+            result
         } else {
             Vec::new()
         }
@@ -292,16 +313,29 @@ mod tests {
         let visible = state.get_visible_values("sig1");
         assert_eq!(visible.len(), 3);
 
-        // Partial visibility
+        // Still all...
         state.time_start = 10;
+        state.time_range = 20;
+        let visible = state.get_visible_values("sig1");
+        assert_eq!(visible.len(), 3);
+
+        // ...Now fewer
+        state.time_start = 11;
         state.time_range = 20;
         let visible = state.get_visible_values("sig1");
         assert_eq!(visible.len(), 2);
 
-        // No visibility
-        state.time_start = 30;
+        // Can only see the end state of the signal...
+        state.time_start = 21;
+        state.time_range = 50;
         let visible = state.get_visible_values("sig1");
-        assert_eq!(visible.len(), 0);
+        assert_eq!(visible.len(), 1);
+
+        // ...even at a later time_start
+        state.time_start = 30;
+        state.time_range = 50;
+        let visible = state.get_visible_values("sig1");
+        assert_eq!(visible.len(), 1);
 
         // Test with non-displayed signal
         state.displayed_signals = vec!["sig2".to_string()];
