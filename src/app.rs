@@ -620,6 +620,73 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
+    fn test_render_app_with_bus_values() {
+        use crate::parsers::types::{Value, WaveValue};
+        let mut app = App::with_config(config::AppConfig::default());
+
+        // Add test data with binary and bus signals
+        app.state.waveform_data.signals = vec![
+            "binary_signal".to_string(),
+            "narrow_bus".to_string(),
+            "wide_bus".to_string(),
+            "mixed_bus".to_string(),
+        ];
+        app.state.displayed_signals = app.state.waveform_data.signals.clone();
+        app.state.waveform_data.max_time = 200;
+
+        // Add a binary signal
+        app.state.waveform_data.values.insert(
+            "binary_signal".to_string(),
+            vec![
+                (0, WaveValue::Binary(Value::V0)),
+                (100, WaveValue::Binary(Value::V1)),
+            ],
+        );
+
+        // Add a narrow bus (4-bit)
+        app.state.waveform_data.values.insert(
+            "narrow_bus".to_string(),
+            vec![
+                (0, WaveValue::Bus("0A".to_string())),
+                (80, WaveValue::Bus("0F".to_string())),
+            ],
+        );
+
+        // Add a wide bus (16-bit)
+        app.state.waveform_data.values.insert(
+            "wide_bus".to_string(),
+            vec![
+                (0, WaveValue::Bus("DEAD".to_string())),
+                (50, WaveValue::Bus("BEEF".to_string())),
+                (150, WaveValue::Bus("CAFE".to_string())),
+            ],
+        );
+
+        // Add a bus with x/z values
+        app.state.waveform_data.values.insert(
+            "mixed_bus".to_string(),
+            vec![
+                (0, WaveValue::Bus("00".to_string())),
+                (60, WaveValue::Bus("xZ".to_string())),
+                (120, WaveValue::Bus("FF".to_string())),
+            ],
+        );
+
+        // Set up the view parameters
+        app.state.time_start = 0;
+        app.state.time_range = 200;
+
+        // Render the app
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
     fn test_render_app_with_markers() {
         use crate::parsers::types::{Value, WaveValue};
         let mut app = App::with_config(config::AppConfig::default());

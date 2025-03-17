@@ -1,3 +1,4 @@
+use super::parse_fns::*;
 use super::types::{Value, WaveValue, WaveformData};
 use indexmap::IndexMap;
 use nom::{
@@ -65,10 +66,11 @@ pub fn parse_vcd_file<P: AsRef<Path>>(path: P) -> io::Result<WaveformData> {
     for (_, signal_values) in values.iter_mut() {
         for (_, value) in signal_values.iter_mut() {
             if let WaveValue::Bus(bin_str) = value {
-                if bin_str.starts_with("00000000") {
-                    *value = WaveValue::Bus("00".to_string());
-                } else if bin_str.starts_with("10101010") {
-                    *value = WaveValue::Bus("AA".to_string());
+                // Only convert if the value looks like a binary string (all 0s and 1s)
+                if bin_str.chars().all(|c| c == '0' || c == '1') {
+                    if let Ok((_, hex_str)) = parse_binary_to_hex(bin_str) {
+                        *value = WaveValue::Bus(hex_str);
+                    }
                 }
             }
         }
@@ -251,8 +253,13 @@ mod tests {
         writeln!(temp_file, "1$").unwrap();
         writeln!(temp_file, "b00000000 %").unwrap();
         writeln!(temp_file, "$end").unwrap();
+        writeln!(temp_file, "#5").unwrap();
+        writeln!(temp_file, "b00001111 %").unwrap();
         writeln!(temp_file, "#10").unwrap();
         writeln!(temp_file, "1#").unwrap();
+        writeln!(temp_file, "b11110000 %").unwrap();
+        writeln!(temp_file, "#15").unwrap();
+        writeln!(temp_file, "b01010101 %").unwrap();
         writeln!(temp_file, "#20").unwrap();
         writeln!(temp_file, "0#").unwrap();
         writeln!(temp_file, "0$").unwrap();
@@ -283,10 +290,16 @@ mod tests {
 
         // Check data values
         let data_values = vcd_data.values.get("data").unwrap();
-        assert_eq!(data_values.len(), 2);
+        assert_eq!(data_values.len(), 5);
         assert_eq!(data_values[0].0, 0);
         assert!(matches!(data_values[0].1, WaveValue::Bus(ref s) if s == "00"));
-        assert_eq!(data_values[1].0, 20);
-        assert!(matches!(data_values[1].1, WaveValue::Bus(ref s) if s == "AA"));
+        assert_eq!(data_values[1].0, 5);
+        assert!(matches!(data_values[1].1, WaveValue::Bus(ref s) if s == "0F"));
+        assert_eq!(data_values[2].0, 10);
+        assert!(matches!(data_values[2].1, WaveValue::Bus(ref s) if s == "F0"));
+        assert_eq!(data_values[3].0, 15);
+        assert!(matches!(data_values[3].1, WaveValue::Bus(ref s) if s == "55"));
+        assert_eq!(data_values[4].0, 20);
+        assert!(matches!(data_values[4].1, WaveValue::Bus(ref s) if s == "AA"));
     }
 }
