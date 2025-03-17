@@ -152,7 +152,7 @@ impl AppState {
 
                     // Only report if values are different (it's a real transition)
                     if !self.values_equal(before_val, after_val) {
-                        return Some(format!("{}->{}", before_val, after_val));
+                        return Some(format!("{:X}->{:X}", before_val, after_val));
                     }
                 }
             }
