@@ -25,6 +25,7 @@ struct VarDef {
     id: String,
     name: String,
     width: usize,
+    var_type: String,
 }
 
 pub fn parse_vcd_file<P: AsRef<Path>>(path: P) -> io::Result<WaveformData> {
@@ -36,6 +37,8 @@ pub fn parse_vcd_file<P: AsRef<Path>>(path: P) -> io::Result<WaveformData> {
     let mut current_time = 0u64;
     let mut values: HashMap<String, Vec<(u64, WaveValue)>> = HashMap::new();
     let mut in_definitions = true;
+    let mut in_dumpvars = false;
+    let mut current_scope = Vec::<String>::new();
 
     for line in reader.lines() {
         let line = line?;
@@ -43,11 +46,31 @@ pub fn parse_vcd_file<P: AsRef<Path>>(path: P) -> io::Result<WaveformData> {
 
         if line.starts_with("$var") {
             if let Ok((_, var_def)) = parse_var_declaration(line) {
+                // Combine full hierarchical name using the current scope
+                let mut full_name = String::new();
+                for scope in &current_scope {
+                    full_name.push_str(scope);
+                    full_name.push('.');
+                }
+                full_name.push_str(&var_def.name);
+
                 var_defs.insert(var_def.id.clone(), var_def.clone());
-                id_to_name.insert(var_def.id.clone(), var_def.name.clone());
+                id_to_name.insert(var_def.id.clone(), full_name);
+            }
+        } else if line.starts_with("$scope") {
+            if let Ok((_, scope_name)) = parse_scope_declaration(line) {
+                current_scope.push(scope_name);
+            }
+        } else if line.starts_with("$upscope") {
+            if !current_scope.is_empty() {
+                current_scope.pop();
             }
         } else if line.starts_with("$enddefinitions") {
             in_definitions = false;
+        } else if line.starts_with("$dumpvars") {
+            in_dumpvars = true;
+        } else if line.starts_with("$end") && in_dumpvars {
+            in_dumpvars = false;
         } else if !in_definitions && line.starts_with("#") {
             if let Ok((_, time)) = parse_time_stamp(line) {
                 current_time = time;
@@ -83,10 +106,28 @@ pub fn parse_vcd_file<P: AsRef<Path>>(path: P) -> io::Result<WaveformData> {
     })
 }
 
+fn parse_scope_declaration(input: &str) -> IResult<&str, String> {
+    let (input, _) = tag("$scope")(input)?;
+    let (input, _) = multispace1(input)?;
+
+    // Scope type (module, task, function, begin, fork) - we don't actually need this for display
+    let (input, _) = is_not(" \t\n")(input)?;
+    let (input, _) = multispace1(input)?;
+
+    // Scope identifier
+    let (input, name) = take_till1(|c: char| c.is_whitespace() || c == '$')(input)?;
+
+    // End of declaration
+    let (input, _) = take_until("$end")(input)?;
+    let (input, _) = tag("$end")(input)?;
+
+    Ok((input, name.to_string()))
+}
+
 fn parse_var_declaration(input: &str) -> IResult<&str, VarDef> {
     let (input, _) = tag("$var")(input)?;
     let (input, _) = multispace1(input)?;
-    let (input, _) = is_not(" \t\n")(input)?; // type (wire)
+    let (input, var_type) = is_not(" \t\n")(input)?; // type (wire, reg, etc.)
     let (input, _) = multispace1(input)?;
     let (input, width) = map_res(digit1, |s: &str| s.parse::<usize>()).parse(input)?;
     let (input, _) = multispace1(input)?;
@@ -102,6 +143,7 @@ fn parse_var_declaration(input: &str) -> IResult<&str, VarDef> {
             id: id.to_string(),
             name: name.to_string(),
             width,
+            var_type: var_type.to_string(),
         },
     ))
 }
@@ -119,28 +161,45 @@ fn parse_value_change(input: &str) -> IResult<&str, (WaveValue, String)> {
             alt((
                 value(Value::V0, char::<&str, nom::error::Error<&str>>('0')),
                 value(Value::V1, char::<&str, nom::error::Error<&str>>('1')),
-                value(Value::VX, char::<&str, nom::error::Error<&str>>('x')),
-                value(Value::VZ, char::<&str, nom::error::Error<&str>>('z')),
+                value(Value::VX, one_of::<&str, _, nom::error::Error<&str>>("xX")),
+                value(Value::VZ, one_of::<&str, _, nom::error::Error<&str>>("zZ")),
             )),
-            // Change this line to take the rest of the input as the identifier
-            take_while1(|c: char| !c.is_whitespace()),
+            // The identifier follows the value with no whitespace
+            take_while1(|c: char| VCD_IDENTIFIER_CHARS.contains(c)),
         ))
             .map(|(value, id): (Value, &str)| (WaveValue::Binary(value), id.to_string())),
         // Parse bus values (b followed by bit string)
         ((
             preceded(
-                char::<&str, nom::error::Error<&str>>('b'),
-                take_while1(|c: char| c == '0' || c == '1' || c == 'x' || c == 'z'),
+                one_of::<&str, _, nom::error::Error<&str>>("bB"), // Support both 'b' and 'B' prefixes
+                take_while1(|c: char| "01xXzZ".contains(c)),
             ),
             preceded(
                 multispace0,
-                // This one is okay for bus values
-                recognize(one_of::<&str, _, nom::error::Error<&str>>(
-                    VCD_IDENTIFIER_CHARS,
-                )),
+                // Take the identifier (one or more valid identifier chars)
+                take_while1(|c: char| VCD_IDENTIFIER_CHARS.contains(c)),
             ),
         ))
             .map(|(value, id): (&str, &str)| (WaveValue::Bus(value.to_string()), id.to_string())),
+        // Support for real values (r followed by a real number)
+        ((
+            preceded(
+                one_of::<&str, _, nom::error::Error<&str>>("rR"),
+                take_while1(|c: char| "0123456789.eE+-".contains(c)),
+            ),
+            preceded(
+                multispace0,
+                take_while1(|c: char| VCD_IDENTIFIER_CHARS.contains(c)),
+            ),
+        ))
+            .map(|(value, id): (&str, &str)| {
+                // FIXME: Real values are simply placed into a bus format right now. There is no
+                // intention for this app to support mixed signal waveforms, and I don't think that
+                // a TUI would be a good UI for viewing non-binary signals. However, the parser
+                // should still be able to handle these values. Need to review this to determine if
+                // a new enum variant should be added for real values.
+                (WaveValue::Bus(format!("r{}", value)), id.to_string())
+            }),
     ))
     .parse(input)
 }
@@ -159,6 +218,7 @@ mod tests {
         assert_eq!(var_def.id, "#");
         assert_eq!(var_def.name, "clk");
         assert_eq!(var_def.width, 1);
+        assert_eq!(var_def.var_type, "wire");
 
         // Test with a wider bus
         let input = "$var wire 8 % data_bus $end";
@@ -167,6 +227,29 @@ mod tests {
         assert_eq!(var_def.id, "%");
         assert_eq!(var_def.name, "data_bus");
         assert_eq!(var_def.width, 8);
+        assert_eq!(var_def.var_type, "wire");
+
+        // Test with a different var type
+        let input = "$var reg 32 @ address $end";
+        let (remaining, var_def) = parse_var_declaration(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(var_def.id, "@");
+        assert_eq!(var_def.name, "address");
+        assert_eq!(var_def.width, 32);
+        assert_eq!(var_def.var_type, "reg");
+    }
+
+    #[test]
+    fn test_parse_scope_declaration() {
+        let input = "$scope module top $end";
+        let (remaining, scope_name) = parse_scope_declaration(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(scope_name, "top");
+
+        let input = "$scope task my_task $end";
+        let (remaining, scope_name) = parse_scope_declaration(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(scope_name, "my_task");
     }
 
     #[test]
@@ -205,7 +288,21 @@ mod tests {
         assert_eq!(id, "SIG1");
         assert!(matches!(value, WaveValue::Binary(Value::VX)));
 
+        // Capital X should also work
+        let input = "XSIG1";
+        let (remaining, (value, id)) = parse_value_change(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(id, "SIG1");
+        assert!(matches!(value, WaveValue::Binary(Value::VX)));
+
         let input = "zSIG2";
+        let (remaining, (value, id)) = parse_value_change(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(id, "SIG2");
+        assert!(matches!(value, WaveValue::Binary(Value::VZ)));
+
+        // Capital Z should also work
+        let input = "ZSIG2";
         let (remaining, (value, id)) = parse_value_change(input).unwrap();
         assert_eq!(remaining, "");
         assert_eq!(id, "SIG2");
@@ -215,6 +312,13 @@ mod tests {
     #[test]
     fn test_parse_value_change_bus() {
         let input = "b00000000 %";
+        let (remaining, (value, id)) = parse_value_change(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(id, "%");
+        assert!(matches!(value, WaveValue::Bus(ref s) if s == "00000000"));
+
+        // Capital B should also work
+        let input = "B00000000 %";
         let (remaining, (value, id)) = parse_value_change(input).unwrap();
         assert_eq!(remaining, "");
         assert_eq!(id, "%");
@@ -232,6 +336,36 @@ mod tests {
         assert_eq!(remaining, "");
         assert_eq!(id, "%");
         assert!(matches!(value, WaveValue::Bus(ref s) if s == "10xz101z"));
+
+        // Test with capital X and Z values in bus
+        let input = "b10XZ101Z %";
+        let (remaining, (value, id)) = parse_value_change(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(id, "%");
+        assert!(matches!(value, WaveValue::Bus(ref s) if s == "10XZ101Z"));
+    }
+
+    #[test]
+    fn test_parse_value_change_real() {
+        let input = "r1.234 %";
+        let (remaining, (value, id)) = parse_value_change(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(id, "%");
+        assert!(matches!(value, WaveValue::Bus(ref s) if s == "r1.234"));
+
+        // Capital R should also work
+        let input = "R1.234 %";
+        let (remaining, (value, id)) = parse_value_change(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(id, "%");
+        assert!(matches!(value, WaveValue::Bus(ref s) if s == "r1.234"));
+
+        // Scientific notation
+        let input = "r1.234e-5 %";
+        let (remaining, (value, id)) = parse_value_change(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(id, "%");
+        assert!(matches!(value, WaveValue::Bus(ref s) if s == "r1.234e-5"));
     }
 
     #[test]
@@ -272,14 +406,14 @@ mod tests {
         assert_eq!(vcd_data.signals.len(), 3);
 
         // Check that signals are in the same order as they appear in the VCD file
-        assert_eq!(vcd_data.signals[0], "clk");
-        assert_eq!(vcd_data.signals[1], "reset");
-        assert_eq!(vcd_data.signals[2], "data");
+        assert_eq!(vcd_data.signals[0], "test.clk");
+        assert_eq!(vcd_data.signals[1], "test.reset");
+        assert_eq!(vcd_data.signals[2], "test.data");
 
         assert_eq!(vcd_data.max_time, 20);
 
         // Check clk values
-        let clk_values = vcd_data.values.get("clk").unwrap();
+        let clk_values = vcd_data.values.get("test.clk").unwrap();
         assert_eq!(clk_values.len(), 3);
         assert_eq!(clk_values[0].0, 0);
         assert!(matches!(clk_values[0].1, WaveValue::Binary(Value::V0)));
@@ -289,7 +423,7 @@ mod tests {
         assert!(matches!(clk_values[2].1, WaveValue::Binary(Value::V0)));
 
         // Check data values
-        let data_values = vcd_data.values.get("data").unwrap();
+        let data_values = vcd_data.values.get("test.data").unwrap();
         assert_eq!(data_values.len(), 5);
         assert_eq!(data_values[0].0, 0);
         assert!(matches!(data_values[0].1, WaveValue::Bus(ref s) if s == "00"));
