@@ -160,13 +160,18 @@ impl App {
                 // Toggle selection of current signal
                 self.state.fuzzy_finder_state_mut().toggle_selected_signal();
             }
-            KeyCode::Char('a') | KeyCode::Char('A') => {
-                // Select all filtered signals
-                self.state.fuzzy_finder_state_mut().select_all();
-            }
-            KeyCode::Char('c') | KeyCode::Char('C') => {
-                // Clear all selections
-                self.state.fuzzy_finder_state_mut().clear_selection();
+            KeyCode::Char(c) if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                match c {
+                    'a' | 'A' => {
+                        // Select all filtered signals
+                        self.state.fuzzy_finder_state_mut().select_all();
+                    }
+                    'x' | 'X' => {
+                        // Clear all selections
+                        self.state.fuzzy_finder_state_mut().clear_selection();
+                    }
+                    _ => {}
+                }
             }
             KeyCode::Up => self.state.fuzzy_finder_state_mut().select_previous(),
             KeyCode::Down => self.state.fuzzy_finder_state_mut().select_next(),

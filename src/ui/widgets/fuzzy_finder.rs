@@ -92,7 +92,8 @@ impl StatefulWidget for &mut FuzzyFinderWidget {
         state.fuzzy_finder_state_mut().list_state = list_state;
 
         // Render help text at bottom
-        let help_text = "Up/Down: Navigate | Space: Toggle | A: Select All | C: Clear All | Enter: Done | Esc: Cancel";
+        let help_text =
+            "↑/↓: Nav | Space: Toggle | ^A: Select All | ^X: Clear All | Enter: Done | Esc: Cancel";
         let help_span = Span::styled(help_text, Style::default().fg(Color::DarkGray));
         let help_area = Rect::new(
             inner_area.x,
