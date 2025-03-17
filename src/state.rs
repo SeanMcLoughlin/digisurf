@@ -152,7 +152,7 @@ impl AppState {
 
                     // Only report if values are different (it's a real transition)
                     if !self.values_equal(before_val, after_val) {
-                        return Some(self.format_transition(before_val, after_val));
+                        return Some(format!("{}->{}", before_val, after_val));
                     }
                 }
             }
@@ -166,19 +166,6 @@ impl AppState {
             (WaveValue::Binary(b1), WaveValue::Binary(b2)) => b1 == b2,
             (WaveValue::Bus(s1), WaveValue::Bus(s2)) => s1 == s2,
             _ => false,
-        }
-    }
-
-    // Helper function to format transition
-    fn format_transition(&self, before: &WaveValue, after: &WaveValue) -> String {
-        match (before, after) {
-            (WaveValue::Binary(v1), WaveValue::Binary(v2)) => {
-                format!("{}->{}", v1, v2)
-            }
-            (WaveValue::Bus(v1), WaveValue::Bus(v2)) => {
-                format!("{}->{}", v1, v2)
-            }
-            _ => "???".to_string(),
         }
     }
 

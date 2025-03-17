@@ -1,4 +1,3 @@
-use crate::parsers::types::WaveValue;
 use crate::state::AppState;
 use ratatui::prelude::{Buffer, Rect};
 use ratatui::style::{Color, Style};
@@ -78,10 +77,7 @@ impl StatefulWidget for SignalListWidget {
 
                 // Show current value if no transition
                 if let Some(value) = state.get_value_at_marker(name, marker_time) {
-                    let value_text = match value {
-                        WaveValue::Binary(v) => format!("{}", v),
-                        WaveValue::Bus(s) => s,
-                    };
+                    let value_text = value.to_string();
 
                     let value_area = Rect::new(
                         text_x,

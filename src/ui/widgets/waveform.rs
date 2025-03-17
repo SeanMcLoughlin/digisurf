@@ -161,7 +161,7 @@ impl WaveformWidget {
                     let midpoint = start_x + (segment_width - value_len) / 2;
                     let label_area = Rect::new(area.x + midpoint, area.y, value_len, 1);
 
-                    Paragraph::new(value.clone())
+                    Paragraph::new(format!("{:X}", v))
                         .style(style)
                         .render(label_area, buf);
                 }
@@ -329,8 +329,6 @@ impl StatefulWidget for WaveformWidget {
     }
 }
 
-// Add to digisurf/src/ui/widgets/waveform.rs
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -363,7 +361,7 @@ mod tests {
             "sig2".to_string(),
             vec![
                 (0, WaveValue::Bus("00".to_string())),
-                (15, WaveValue::Bus("FF".to_string())),
+                (15, WaveValue::Bus("ff".to_string())),
             ],
         );
 
