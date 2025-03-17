@@ -5,7 +5,7 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_till1, take_until, take_while1},
     character::complete::{char, digit1, multispace0, multispace1, one_of},
-    combinator::{map_res, recognize, value},
+    combinator::{map_res, value},
     sequence::preceded,
     IResult, Parser,
 };
@@ -14,10 +14,6 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 use std::str;
-
-/// Valid characters for VCD identifiers
-const VCD_IDENTIFIER_CHARS: &str =
-    "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 
 /// Variable definition for VCD files only, hence private to this module.
 #[derive(Debug, PartialEq, Clone)]
@@ -125,15 +121,21 @@ fn parse_scope_declaration(input: &str) -> IResult<&str, String> {
 }
 
 fn parse_var_declaration(input: &str) -> IResult<&str, VarDef> {
+    // Syntax is:
+    // $var var_type size identifier reference $end
     let (input, _) = tag("$var")(input)?;
     let (input, _) = multispace1(input)?;
-    let (input, var_type) = is_not(" \t\n")(input)?; // type (wire, reg, etc.)
+    let (input, var_type) = is_not(" \t\n")(input)?; // var_type
     let (input, _) = multispace1(input)?;
-    let (input, width) = map_res(digit1, |s: &str| s.parse::<usize>()).parse(input)?;
+    let (input, width) = map_res(digit1, |s: &str| s.parse::<usize>()).parse(input)?; // size
     let (input, _) = multispace1(input)?;
-    let (input, id) = recognize(one_of(VCD_IDENTIFIER_CHARS)).parse(input)?;
+    let (input, id) = take_till1(|c: char| c.is_whitespace())(input)?; // identifier
     let (input, _) = multispace1(input)?;
-    let (input, name) = take_till1(|c: char| c.is_whitespace() || c == '$')(input)?;
+
+    let (input, name) = take_till1(|c: char| c.is_whitespace() || c == '$')(input)?; // reference
+
+    // Optional whitespace before $end
+    let (input, _) = multispace0(input)?;
     let (input, _) = take_until("$end")(input)?;
     let (input, _) = tag("$end")(input)?;
 
@@ -165,7 +167,7 @@ fn parse_value_change(input: &str) -> IResult<&str, (WaveValue, String)> {
                 value(Value::VZ, one_of::<&str, _, nom::error::Error<&str>>("zZ")),
             )),
             // The identifier follows the value with no whitespace
-            take_while1(|c: char| VCD_IDENTIFIER_CHARS.contains(c)),
+            take_while1(|c: char| c.is_ascii()),
         ))
             .map(|(value, id): (Value, &str)| (WaveValue::Binary(value), id.to_string())),
         // Parse bus values (b followed by bit string)
@@ -177,7 +179,7 @@ fn parse_value_change(input: &str) -> IResult<&str, (WaveValue, String)> {
             preceded(
                 multispace0,
                 // Take the identifier (one or more valid identifier chars)
-                take_while1(|c: char| VCD_IDENTIFIER_CHARS.contains(c)),
+                take_while1(|c: char| c.is_ascii()),
             ),
         ))
             .map(|(value, id): (&str, &str)| (WaveValue::Bus(value.to_string()), id.to_string())),
@@ -187,10 +189,7 @@ fn parse_value_change(input: &str) -> IResult<&str, (WaveValue, String)> {
                 one_of::<&str, _, nom::error::Error<&str>>("rR"),
                 take_while1(|c: char| "0123456789.eE+-".contains(c)),
             ),
-            preceded(
-                multispace0,
-                take_while1(|c: char| VCD_IDENTIFIER_CHARS.contains(c)),
-            ),
+            preceded(multispace0, take_while1(|c: char| c.is_ascii())),
         ))
             .map(|(value, id): (&str, &str)| {
                 // FIXME: Real values are simply placed into a bus format right now. There is no
@@ -237,6 +236,15 @@ mod tests {
         assert_eq!(var_def.name, "address");
         assert_eq!(var_def.width, 32);
         assert_eq!(var_def.var_type, "reg");
+
+        // Test with multi-character identifier
+        let input = "$var wire 1 clk_id clk $end";
+        let (remaining, var_def) = parse_var_declaration(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(var_def.id, "clk_id");
+        assert_eq!(var_def.name, "clk");
+        assert_eq!(var_def.width, 1);
+        assert_eq!(var_def.var_type, "wire");
     }
 
     #[test]
@@ -307,6 +315,13 @@ mod tests {
         assert_eq!(remaining, "");
         assert_eq!(id, "SIG2");
         assert!(matches!(value, WaveValue::Binary(Value::VZ)));
+
+        // Test with multi-character identifier
+        let input = "0clk_id";
+        let (remaining, (value, id)) = parse_value_change(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(id, "clk_id");
+        assert!(matches!(value, WaveValue::Binary(Value::V0)));
     }
 
     #[test]
@@ -343,6 +358,13 @@ mod tests {
         assert_eq!(remaining, "");
         assert_eq!(id, "%");
         assert!(matches!(value, WaveValue::Bus(ref s) if s == "10XZ101Z"));
+
+        // Test with multi-character identifier
+        let input = "b10101010 clk_id";
+        let (remaining, (value, id)) = parse_value_change(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(id, "clk_id");
+        assert!(matches!(value, WaveValue::Bus(ref s) if s == "10101010"));
     }
 
     #[test]
@@ -366,6 +388,13 @@ mod tests {
         assert_eq!(remaining, "");
         assert_eq!(id, "%");
         assert!(matches!(value, WaveValue::Bus(ref s) if s == "r1.234e-5"));
+
+        // Test with multi-character identifier
+        let input = "r1.234 clk_id";
+        let (remaining, (value, id)) = parse_value_change(input).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(id, "clk_id");
+        assert!(matches!(value, WaveValue::Bus(ref s) if s == "r1.234"));
     }
 
     #[test]
