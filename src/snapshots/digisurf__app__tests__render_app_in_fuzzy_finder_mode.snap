@@ -20,5 +20,5 @@ expression: terminal.backend()
 "│                                                                              │"
 "│                                                                              │"
 "│                                                                              │"
-"│Up/Down: Navigate | Space: Toggle | A: Select All | C: Clear All | Enter: Done│"
+"│↑/↓: Nav | Space: Toggle | ^A: Select All | ^X: Clear All | Enter: Done | Esc:│"
 "└──────────────────────────────────────────────────────────────────────────────┘"

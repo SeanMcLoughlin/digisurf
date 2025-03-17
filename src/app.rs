@@ -625,7 +625,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_render_app_with_bus_values() {
         use crate::parsers::types::{Value, WaveValue};
         let mut app = App::with_config(config::AppConfig::default());
