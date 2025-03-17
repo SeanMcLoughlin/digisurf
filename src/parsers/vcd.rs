@@ -17,7 +17,7 @@ use std::str;
 
 /// Valid characters for VCD identifiers
 const VCD_IDENTIFIER_CHARS: &str =
-    "#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+    "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 
 /// Variable definition for VCD files only, hence private to this module.
 #[derive(Debug, PartialEq, Clone)]
@@ -377,25 +377,25 @@ mod tests {
         writeln!(temp_file, "$version Test VCD 1.0 $end").unwrap();
         writeln!(temp_file, "$timescale 1ps $end").unwrap();
         writeln!(temp_file, "$scope module test $end").unwrap();
-        writeln!(temp_file, "$var wire 1 # clk $end").unwrap();
+        writeln!(temp_file, "$var wire 1 ! clk $end").unwrap();
         writeln!(temp_file, "$var wire 1 $ reset $end").unwrap();
         writeln!(temp_file, "$var wire 8 % data $end").unwrap();
         writeln!(temp_file, "$upscope $end").unwrap();
         writeln!(temp_file, "$enddefinitions $end").unwrap();
         writeln!(temp_file, "$dumpvars").unwrap();
-        writeln!(temp_file, "0#").unwrap();
+        writeln!(temp_file, "0!").unwrap();
         writeln!(temp_file, "1$").unwrap();
         writeln!(temp_file, "b00000000 %").unwrap();
         writeln!(temp_file, "$end").unwrap();
         writeln!(temp_file, "#5").unwrap();
         writeln!(temp_file, "b00001111 %").unwrap();
         writeln!(temp_file, "#10").unwrap();
-        writeln!(temp_file, "1#").unwrap();
+        writeln!(temp_file, "1!").unwrap();
         writeln!(temp_file, "b11110000 %").unwrap();
         writeln!(temp_file, "#15").unwrap();
         writeln!(temp_file, "b01010101 %").unwrap();
         writeln!(temp_file, "#20").unwrap();
-        writeln!(temp_file, "0#").unwrap();
+        writeln!(temp_file, "0!").unwrap();
         writeln!(temp_file, "0$").unwrap();
         writeln!(temp_file, "b10101010 %").unwrap();
 
