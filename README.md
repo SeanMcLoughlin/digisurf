@@ -3,6 +3,8 @@
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Build Status](https://github.com/SeanMcLoughlin/digisurf/actions/workflows/ci.yml/badge.svg)](https://github.com/SeanMcLoughlin/digisurf/actions/workflows/ci.yml)
 
+⚠️ **ALPHA SOFTWARE WARNING**: DigiSurf is currently in alpha stage. Expect bugs, incomplete features, and potential breaking changes between versions. Use at your own risk.
+
 DigiSurf is a terminal-based UI application for viewing and analyzing digital signal waveforms. It provides an intuitive interface for navigating through waveform data, placing markers, measuring timing, and examining signal values.
 
 ## Features
@@ -46,7 +48,13 @@ digisurf -f yourfile.vcd -c custom_config.toml
 
 ## Installation
 
-Download the latest release or build from source:
+Install with cargo:
+
+```bash
+cargo install digisurf
+```
+
+Or clone this repo and build from source:
 
 ```bash
 cargo build --release
