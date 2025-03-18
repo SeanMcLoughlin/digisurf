@@ -29,15 +29,6 @@ impl<S> CommandBuilder<S> {
         self
     }
 
-    /// Add multiple aliases for the command
-    #[allow(dead_code)]
-    pub fn aliases(mut self, aliases: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        for alias in aliases {
-            self.aliases.push(alias.into());
-        }
-        self
-    }
-
     /// Build the command
     pub fn build(self) -> Rc<Box<dyn Command<S>>>
     where
