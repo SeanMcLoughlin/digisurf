@@ -313,17 +313,16 @@ impl App {
                 if !self.state.displayed_signals.is_empty() {
                     if self.state.selected_signal > 0 {
                         self.state.selected_signal -= 1;
-                    } else {
-                        self.state.selected_signal = self.state.displayed_signals.len() - 1;
+                        self.adjust_scroll_if_needed();
                     }
-                    self.adjust_scroll_if_needed();
                 }
             }
             k if k == self.state.config.keybindings.down => {
                 if !self.state.displayed_signals.is_empty() {
-                    self.state.selected_signal =
-                        (self.state.selected_signal + 1) % self.state.displayed_signals.len();
-                    self.adjust_scroll_if_needed();
+                    if self.state.selected_signal < self.state.displayed_signals.len() - 1 {
+                        self.state.selected_signal += 1;
+                        self.adjust_scroll_if_needed();
+                    }
                 }
             }
             k if k == self.state.config.keybindings.left => {
