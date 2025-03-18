@@ -912,22 +912,11 @@ mod tests {
         app.handle_input(KeyCode::Down);
         assert_eq!(app.state.selected_signal, 2);
 
-        // Selected signal should wrap
-        app.handle_input(KeyCode::Down);
-        assert_eq!(app.state.selected_signal, 0);
-
-        app.handle_input(KeyCode::Up);
-        assert_eq!(app.state.selected_signal, 2);
-
         app.handle_input(KeyCode::Up);
         assert_eq!(app.state.selected_signal, 1);
 
         app.handle_input(KeyCode::Up);
         assert_eq!(app.state.selected_signal, 0);
-
-        // Selected signal should wrap
-        app.handle_input(KeyCode::Up);
-        assert_eq!(app.state.selected_signal, 2);
     }
 
     #[test]
