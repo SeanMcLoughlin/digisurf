@@ -11,7 +11,7 @@ pub fn create() -> Rc<Box<dyn Command<AppState>>> {
         "Open signal finder to select signals to display",
         |_args, state: &mut AppState| {
             state.mode = AppMode::FuzzyFinder;
-            Ok("Opening signal finder".to_string())
+            Ok(String::new()) // Finder window will pop up, so don't have a confirmation message
         },
     )
     .alias("fs")
@@ -24,11 +24,8 @@ mod tests {
 
     #[test]
     fn test_findsignal_command() {
-        let command = create();
-        let mut state = AppState::default();
-        let result = command.execute(&[], &mut state);
-
+        let result = create().execute(&[], &mut AppState::default());
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "Opening signal finder".to_string());
+        assert_eq!(result.unwrap(), String::new());
     }
 }
