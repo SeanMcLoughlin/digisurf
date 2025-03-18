@@ -74,6 +74,9 @@ pub struct AppState {
 
     /// Visual mode start position - used for determining selection range
     pub visual_start: Option<usize>,
+
+    /// Current scroll offset for signals
+    pub signal_scroll_offset: usize,
 }
 
 // Access command mode state in the overall app state via a trait implementation

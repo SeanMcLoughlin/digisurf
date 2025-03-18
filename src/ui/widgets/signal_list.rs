@@ -1,7 +1,9 @@
-use crate::state::AppState;
-use ratatui::prelude::{Buffer, Rect};
-use ratatui::style::{Color, Style};
-use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget, Widget};
+use crate::{constants::WAVEFORM_HEIGHT, state::AppState};
+use ratatui::{
+    prelude::{Buffer, Rect},
+    style::{Color, Style},
+    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
+};
 
 #[derive(Default, Copy, Clone)]
 pub struct SignalListWidget {}
@@ -17,12 +19,31 @@ impl StatefulWidget for SignalListWidget {
         let inner_area = block.inner(area);
         block.render(area, buf);
 
-        let waveform_height = 2; // Match the value in draw_waveforms
+        // Calculate how many signals we can display in the visible area
+        let visible_signals = area.height as usize / WAVEFORM_HEIGHT;
 
-        // Now manually render each signal name at the proper position
-        // Only render signals that are in displayed_signals
-        for (idx, name) in state.displayed_signals.iter().enumerate() {
-            let y_position = inner_area.y + (idx as u16 * waveform_height);
+        // Ensure scroll offset is within valid bounds
+        if state.signal_scroll_offset
+            > state
+                .displayed_signals
+                .len()
+                .saturating_sub(visible_signals)
+        {
+            state.signal_scroll_offset = state
+                .displayed_signals
+                .len()
+                .saturating_sub(visible_signals);
+        }
+
+        for (rel_idx, (idx, name)) in state
+            .displayed_signals
+            .iter()
+            .enumerate()
+            .skip(state.signal_scroll_offset)
+            .take(visible_signals)
+            .enumerate()
+        {
+            let y_position = inner_area.y + (rel_idx as u16 * WAVEFORM_HEIGHT as u16);
 
             // Skip if we're outside the visible area
             if y_position >= inner_area.bottom() {
@@ -36,7 +57,7 @@ impl StatefulWidget for SignalListWidget {
             };
 
             // Calculate vertical center of the waveform area
-            let vertical_center = y_position + ((waveform_height / 2) - 1);
+            let vertical_center = y_position + ((WAVEFORM_HEIGHT as u16 / 2) - 1);
 
             // Signal name
             let signal_area = Rect::new(

@@ -11,3 +11,6 @@ pub const COMMAND_RESULT_HIDE_THRESHOLD_SECONDS: u64 = 3;
 
 /// The highlight color when clicking and dragging on the waveform.
 pub const DRAG_COLOR: ratatui::style::Color = ratatui::style::Color::Rgb(100, 150, 255);
+
+/// The height of a single wave line in terminal rows.
+pub const WAVEFORM_HEIGHT: usize = 2;

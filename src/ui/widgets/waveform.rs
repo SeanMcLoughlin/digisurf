@@ -1,5 +1,5 @@
 use crate::{
-    constants::DRAG_COLOR,
+    constants::{DRAG_COLOR, WAVEFORM_HEIGHT},
     parsers::types::{Value, WaveValue},
     state::AppState,
 };
@@ -170,23 +170,33 @@ impl WaveformWidget {
     }
 
     pub fn draw_signals(&self, buf: &mut Buffer, area: Rect, state: &AppState) {
-        let waveform_height = 2;
         let time_start = state.time_start;
         let time_range = state.time_range;
 
-        for (idx, signal_name) in state.displayed_signals.iter().enumerate() {
+        // Calculate how many signals we can display in the visible area
+        let visible_signals = area.height as usize / WAVEFORM_HEIGHT;
+
+        // Only render signals that are within the scroll viewport
+        for (rel_idx, (abs_idx, signal_name)) in state
+            .displayed_signals
+            .iter()
+            .enumerate()
+            .skip(state.signal_scroll_offset)
+            .take(visible_signals)
+            .enumerate()
+        {
             let signal_area = Rect::new(
                 area.x,
-                area.y + (idx as u16 * waveform_height),
+                area.y + (rel_idx as u16 * WAVEFORM_HEIGHT as u16),
                 area.width,
-                waveform_height,
+                WAVEFORM_HEIGHT as u16,
             );
 
             if signal_area.y >= area.bottom() {
-                continue; // Don't render signals outside of visible area
+                break; // Don't render signals outside of visible area
             }
 
-            let is_selected = idx == state.selected_signal;
+            let is_selected = abs_idx == state.selected_signal;
             let style = if is_selected {
                 Style::default().fg(Color::Yellow)
             } else {

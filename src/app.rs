@@ -1,6 +1,7 @@
 use crate::{
     command_mode::{CommandModeStateAccess, CommandModeWidget},
-    commands, config, constants,
+    commands, config,
+    constants::{self, WAVEFORM_HEIGHT},
     fuzzy_finder::FuzzyFinderStateAccess,
     parsers,
     state::AppState,
@@ -315,12 +316,14 @@ impl App {
                     } else {
                         self.state.selected_signal = self.state.displayed_signals.len() - 1;
                     }
+                    self.adjust_scroll_if_needed();
                 }
             }
             k if k == self.state.config.keybindings.down => {
                 if !self.state.displayed_signals.is_empty() {
                     self.state.selected_signal =
                         (self.state.selected_signal + 1) % self.state.displayed_signals.len();
+                    self.adjust_scroll_if_needed();
                 }
             }
             k if k == self.state.config.keybindings.left => {
@@ -400,6 +403,30 @@ impl App {
             }
 
             _ => {}
+        }
+    }
+
+    fn adjust_scroll_if_needed(&mut self) {
+        // Calculate how many signals can be displayed at once
+        let visible_signals = self.layout.waveform.height as usize / WAVEFORM_HEIGHT;
+
+        if visible_signals == 0 {
+            return; // Avoid division by zero
+        }
+
+        // If the selected signal is before the current scroll offset, scroll up
+        if self.state.selected_signal < self.state.signal_scroll_offset {
+            self.state.signal_scroll_offset = self.state.selected_signal;
+        }
+
+        // If the selected signal is beyond the visible area, scroll down
+        let last_visible = self.state.signal_scroll_offset + visible_signals - 1;
+        if self.state.selected_signal > last_visible {
+            // Set scroll to position the selected signal at the bottom of the view
+            self.state.signal_scroll_offset = self
+                .state
+                .selected_signal
+                .saturating_sub(visible_signals - 1);
         }
     }
 
@@ -1002,6 +1029,101 @@ mod tests {
             .draw(|frame| frame.render_widget(&mut app, frame.area()))
             .unwrap();
 
+        assert_snapshot!(terminal.backend());
+    }
+
+    // Create an app with a large number of signals so that scrolling is required to view all of
+    // them.
+    fn setup_up_down_scroll_test_app() -> App {
+        use crate::parsers::types::{Value, WaveValue};
+        let mut app = App::with_config(config::AppConfig::default());
+
+        // Set up waveform data
+        app.state.waveform_data.max_time = 1000;
+        app.state.time_start = 0;
+        app.state.time_range = 400;
+        app.state.selected_signal = 0;
+        app.state.signal_scroll_offset = 0;
+
+        // Add more signals than can fit in the viewport
+        for c in 'a'..='z' {
+            let signal_name = format!("signal_{}", c);
+            app.state.waveform_data.signals.push(signal_name.clone());
+
+            // Create values for each signal with the same pattern
+            let mut signal_values = Vec::new();
+            signal_values.extend(vec![
+                (0, WaveValue::Binary(Value::V0)),
+                (50, WaveValue::Binary(Value::V1)),
+                (100, WaveValue::Binary(Value::V0)),
+                (150, WaveValue::Binary(Value::V1)),
+                (200, WaveValue::Binary(Value::V0)),
+            ]);
+
+            app.state
+                .waveform_data
+                .values
+                .insert(signal_name, signal_values);
+        }
+
+        // Initialize displayed_signals with the same signals
+        app.state.displayed_signals = app.state.waveform_data.signals.clone();
+
+        app
+    }
+
+    #[test]
+    fn test_scroll_down() {
+        let mut app = setup_up_down_scroll_test_app();
+
+        // We need to render the app once to initialize the layout
+        // so that adjust_scroll_if_needed has the correct dimensions
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        // Now move down far enough to trigger scrolling
+        for _ in 0..10 {
+            app.handle_input(KeyCode::Down);
+        }
+
+        // Render again to capture the scrolled state
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        // The snapshot assert should capture signals further in the alphabet than a-f
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_scroll_up() {
+        let mut app = setup_up_down_scroll_test_app();
+
+        // We need to render the app once to initialize the layout
+        // so that adjust_scroll_if_needed has the correct dimensions
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        // Now move down far enough to trigger scrolling
+        for _ in 0..10 {
+            app.handle_input(KeyCode::Down);
+        }
+
+        // Scroll back up
+        for _ in 0..10 {
+            app.handle_input(KeyCode::Up);
+        }
+
+        // Render again to capture the scrolled state
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        // The snapshot assert should capture signals a-f
         assert_snapshot!(terminal.backend());
     }
 }
