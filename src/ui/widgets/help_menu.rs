@@ -31,6 +31,7 @@ impl StatefulWidget for HelpMenuWidget {
             \n\
             Navigation:\n\
             {}/{} - Select signal\n\
+            {}+Shift/{}+Shift - Move signal up/down\n\
             {}/{} - Navigate timeline\n\
             {} - Zoom in\n\
             {} - Zoom out\n\
@@ -57,6 +58,8 @@ impl StatefulWidget for HelpMenuWidget {
             Help Navigation:\n\
             Up/Down arrows - Scroll help content\n\
             Esc - Close help",
+            self.key_to_string(&state.config.keybindings.up),
+            self.key_to_string(&state.config.keybindings.down),
             self.key_to_string(&state.config.keybindings.up),
             self.key_to_string(&state.config.keybindings.down),
             self.key_to_string(&state.config.keybindings.left),

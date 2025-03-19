@@ -2,7 +2,7 @@ pub mod builder;
 mod parser;
 pub mod registry;
 pub mod state;
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEvent};
 use parser::CommandParser;
 use ratatui::{
     layout::Rect,
@@ -43,13 +43,13 @@ impl<S> CommandModeWidget<S> {
         self.is_active
     }
 
-    pub fn handle_input(&mut self, key: KeyCode, app_state: &mut S)
+    pub fn handle_input(&mut self, key: KeyEvent, app_state: &mut S)
     where
         S: CommandModeStateAccess,
     {
         let cmd_state = app_state.command_state_mut();
 
-        match key {
+        match key.code {
             // Handle keyboard navigation and editing
             KeyCode::Left => cmd_state.move_cursor_left(),
             KeyCode::Right => cmd_state.move_cursor_right(),

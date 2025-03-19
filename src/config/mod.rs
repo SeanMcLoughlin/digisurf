@@ -64,6 +64,12 @@ pub struct KeybindingsConfig {
     #[serde(default = "defaults::keys::right")]
     pub right: KeyCode,
 
+    #[serde(default = "defaults::keys::move_signal_up")]
+    pub move_signal_up: KeyCode,
+
+    #[serde(default = "defaults::keys::move_signal_down")]
+    pub move_signal_down: KeyCode,
+
     #[serde(default = "defaults::keys::zoom_in")]
     pub zoom_in: KeyCode,
 
@@ -94,6 +100,8 @@ impl Default for KeybindingsConfig {
             down: defaults::keys::down(),
             left: defaults::keys::left(),
             right: defaults::keys::right(),
+            move_signal_up: defaults::keys::move_signal_up(),
+            move_signal_down: defaults::keys::move_signal_down(),
             zoom_in: defaults::keys::zoom_in(),
             zoom_out: defaults::keys::zoom_out(),
             zoom_full: defaults::keys::zoom_full(),

@@ -12,6 +12,14 @@ pub fn down() -> KeyCode {
     KeyCode::Down
 }
 
+pub fn move_signal_up() -> KeyCode {
+    KeyCode::Up
+}
+
+pub fn move_signal_down() -> KeyCode {
+    KeyCode::Down
+}
+
 pub fn left() -> KeyCode {
     KeyCode::Left
 }

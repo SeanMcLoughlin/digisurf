@@ -62,6 +62,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use crate::{app::App, config, types::AppMode};
+    use crossterm::event::{KeyEvent, KeyModifiers};
     use std::fs;
     use tempfile::NamedTempFile;
 
@@ -122,11 +123,17 @@ mod tests {
         assert_eq!(app.state.mode, AppMode::Normal);
 
         // Test entering command mode
-        app.handle_input(app.state.config.keybindings.enter_command_mode);
+        app.handle_input(KeyEvent::new(
+            app.state.config.keybindings.enter_command_mode,
+            KeyModifiers::empty(),
+        ));
         assert_eq!(app.state.mode, AppMode::Command);
 
         // Test exiting command mode
-        app.handle_command_input(app.state.config.keybindings.enter_normal_mode);
+        app.handle_command_input(KeyEvent::new(
+            app.state.config.keybindings.enter_normal_mode,
+            KeyModifiers::empty(),
+        ));
         assert_eq!(app.state.mode, AppMode::Normal);
     }
 }

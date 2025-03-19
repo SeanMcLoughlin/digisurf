@@ -16,7 +16,7 @@ use crate::{
     },
 };
 use crossterm::event::{
-    self, Event, KeyCode, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    self, Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
 use ratatui::{
     layout::Rect,
@@ -102,11 +102,11 @@ impl App {
                                 _ => {}
                             }
                         } else if self.state.mode == AppMode::Command {
-                            self.handle_command_input(key.code);
+                            self.handle_command_input(key);
                         } else if self.state.mode == AppMode::FuzzyFinder {
                             self.handle_fuzzy_finder_input(key);
                         } else {
-                            self.handle_input(key.code);
+                            self.handle_input(key);
                         }
                     }
                     Event::Mouse(mouse) => self.handle_mouse(mouse),
@@ -130,7 +130,7 @@ impl App {
         commands::register_all_commands(&mut self.command_mode);
     }
 
-    fn handle_fuzzy_finder_input(&mut self, key: crossterm::event::KeyEvent) {
+    fn handle_fuzzy_finder_input(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => {
                 // Exit fuzzy finder mode without changing selections
@@ -182,13 +182,13 @@ impl App {
         }
     }
 
-    pub fn handle_command_input(&mut self, key: KeyCode) {
+    pub fn handle_command_input(&mut self, key: KeyEvent) {
         match key {
-            k if k == self.state.config.keybindings.enter_normal_mode => {
+            k if k.code == self.state.config.keybindings.enter_normal_mode => {
                 self.state.mode = AppMode::Normal;
                 self.state.command_state_mut().clear();
             }
-            k if k == self.state.config.keybindings.execute_command => {
+            k if k.code == self.state.config.keybindings.execute_command => {
                 let executed = self.command_mode.execute(&mut self.state);
                 if executed {
                     self.state.command_state_mut().command_result_time =
@@ -205,11 +205,11 @@ impl App {
         }
     }
 
-    pub fn handle_input(&mut self, key: KeyCode) {
+    pub fn handle_input(&mut self, key: KeyEvent) {
         if self.state.mode == AppMode::Command {
             self.handle_command_input(key);
         } else {
-            if key == self.state.config.keybindings.enter_command_mode {
+            if key.code == self.state.config.keybindings.enter_command_mode {
                 self.state.mode = AppMode::Command;
                 self.state.command_state_mut().clear();
             } else {
@@ -307,25 +307,54 @@ impl App {
         }
     }
 
-    fn handle_normal_mode(&mut self, key: KeyCode) {
+    fn handle_normal_mode(&mut self, key: KeyEvent) {
         match key {
-            k if k == self.state.config.keybindings.up => {
-                if !self.state.displayed_signals.is_empty() {
-                    if self.state.selected_signal > 0 {
+            k if k.code == self.state.config.keybindings.up => {
+                if k.modifiers.contains(KeyModifiers::SHIFT) {
+                    // Move the selected signal up in the list
+                    if !self.state.displayed_signals.is_empty() && self.state.selected_signal > 0 {
+                        // Swap the signal with the one above it
+                        self.state
+                            .displayed_signals
+                            .swap(self.state.selected_signal, self.state.selected_signal - 1);
+                        // Keep the selection on the moved signal
                         self.state.selected_signal -= 1;
                         self.adjust_scroll_if_needed();
                     }
-                }
-            }
-            k if k == self.state.config.keybindings.down => {
-                if !self.state.displayed_signals.is_empty() {
-                    if self.state.selected_signal < self.state.displayed_signals.len() - 1 {
-                        self.state.selected_signal += 1;
-                        self.adjust_scroll_if_needed();
+                } else {
+                    if !self.state.displayed_signals.is_empty() {
+                        if self.state.selected_signal > 0 {
+                            self.state.selected_signal -= 1;
+                            self.adjust_scroll_if_needed();
+                        }
                     }
                 }
             }
-            k if k == self.state.config.keybindings.left => {
+            k if k.code == self.state.config.keybindings.down => {
+                if k.modifiers.contains(KeyModifiers::SHIFT) {
+                    // Move the selected signal down in the list
+                    if !self.state.displayed_signals.is_empty()
+                        && self.state.selected_signal < self.state.displayed_signals.len() - 1
+                    {
+                        // Swap the signal with the one below it
+                        self.state
+                            .displayed_signals
+                            .swap(self.state.selected_signal, self.state.selected_signal + 1);
+                        // Keep the selection on the moved signal
+                        self.state.selected_signal += 1;
+                        self.adjust_scroll_if_needed();
+                    }
+                } else {
+                    if !self.state.displayed_signals.is_empty() {
+                        if self.state.selected_signal < self.state.displayed_signals.len() - 1 {
+                            self.state.selected_signal += 1;
+                            self.adjust_scroll_if_needed();
+                        }
+                    }
+                }
+            }
+            k if k.code == self.state.config.keybindings.down => {}
+            k if k.code == self.state.config.keybindings.left => {
                 if self.state.time_start > 0 {
                     self.state.time_start = self
                         .state
@@ -333,7 +362,7 @@ impl App {
                         .saturating_sub(self.state.time_range / 4);
                 }
             }
-            k if k == self.state.config.keybindings.right => {
+            k if k.code == self.state.config.keybindings.right => {
                 if self.state.time_start < self.state.waveform_data.max_time {
                     // Ensure the waveform view doesn't go beyond max_time
                     let max_start = self
@@ -345,7 +374,7 @@ impl App {
                         (self.state.time_start + self.state.time_range / 4).min(max_start);
                 }
             }
-            k if k == self.state.config.keybindings.zoom_out => {
+            k if k.code == self.state.config.keybindings.zoom_out => {
                 // Calculate the new time range, doubling but capped at max_time
                 let new_time_range =
                     (self.state.time_range * 2).min(self.state.waveform_data.max_time);
@@ -375,7 +404,7 @@ impl App {
                 self.state.time_start = adjusted_start;
                 self.state.time_range = new_time_range;
             }
-            k if k == self.state.config.keybindings.zoom_in => {
+            k if k.code == self.state.config.keybindings.zoom_in => {
                 // Calculate center point of current view
                 let center = self.state.time_start + (self.state.time_range / 2);
 
@@ -389,15 +418,15 @@ impl App {
                 self.state.time_start = new_start;
                 self.state.time_range = new_time_range;
             }
-            k if k == self.state.config.keybindings.zoom_full => {
+            k if k.code == self.state.config.keybindings.zoom_full => {
                 self.state.time_start = 0;
                 self.state.time_range = self.state.waveform_data.max_time;
             }
 
-            k if k == self.state.config.keybindings.delete_primary_marker => {
+            k if k.code == self.state.config.keybindings.delete_primary_marker => {
                 self.state.primary_marker = None;
             }
-            k if k == self.state.config.keybindings.delete_secondary_marker => {
+            k if k.code == self.state.config.keybindings.delete_secondary_marker => {
                 self.state.secondary_marker = None;
             }
 
@@ -510,10 +539,13 @@ impl Widget for &mut App {
 mod tests {
     use super::App;
     use crate::{
-        command_mode::CommandModeStateAccess, config, fuzzy_finder::FuzzyFinderStateAccess,
+        command_mode::CommandModeStateAccess,
+        config,
+        fuzzy_finder::FuzzyFinderStateAccess,
+        parsers::types::{Value, WaveValue},
         types::AppMode,
     };
-    use crossterm::event::KeyCode;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use insta::assert_snapshot;
     use ratatui::{backend::TestBackend, Terminal};
 
@@ -848,13 +880,6 @@ mod tests {
 
     #[test]
     fn test_fuzzy_finder_maintains_signal_order() {
-        use crate::{
-            fuzzy_finder::FuzzyFinderStateAccess,
-            parsers::types::{Value, WaveValue},
-            types::AppMode,
-        };
-        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-
         let config = config::AppConfig::default();
         let mut app = App::with_config(config);
 
@@ -917,10 +942,10 @@ mod tests {
         app.state.displayed_signals = vec![];
         app.state.selected_signal = 0;
 
-        app.handle_input(KeyCode::Up);
-        app.handle_input(KeyCode::Down);
-        app.handle_input(KeyCode::Left);
-        app.handle_input(KeyCode::Right);
+        app.handle_input(KeyEvent::new(KeyCode::Up, KeyModifiers::empty()));
+        app.handle_input(KeyEvent::new(KeyCode::Down, KeyModifiers::empty()));
+        app.handle_input(KeyEvent::new(KeyCode::Left, KeyModifiers::empty()));
+        app.handle_input(KeyEvent::new(KeyCode::Right, KeyModifiers::empty()));
     }
 
     #[test]
@@ -936,31 +961,31 @@ mod tests {
         // Start at the first signal
         app.state.selected_signal = 0;
 
-        app.handle_input(KeyCode::Down);
+        app.handle_input(KeyEvent::new(KeyCode::Down, KeyModifiers::empty()));
         assert_eq!(app.state.selected_signal, 1);
 
-        app.handle_input(KeyCode::Down);
+        app.handle_input(KeyEvent::new(KeyCode::Down, KeyModifiers::empty()));
         assert_eq!(app.state.selected_signal, 2);
 
         // Signal should not wrap
-        app.handle_input(KeyCode::Down);
+        app.handle_input(KeyEvent::new(KeyCode::Down, KeyModifiers::empty()));
         assert_eq!(app.state.selected_signal, 2);
 
-        app.handle_input(KeyCode::Up);
+        app.handle_input(KeyEvent::new(KeyCode::Up, KeyModifiers::empty()));
         assert_eq!(app.state.selected_signal, 1);
 
-        app.handle_input(KeyCode::Up);
+        app.handle_input(KeyEvent::new(KeyCode::Up, KeyModifiers::empty()));
         assert_eq!(app.state.selected_signal, 0);
 
         // Signal should not wrap
-        app.handle_input(KeyCode::Up);
+        app.handle_input(KeyEvent::new(KeyCode::Up, KeyModifiers::empty()));
         assert_eq!(app.state.selected_signal, 0);
     }
 
     #[test]
     fn test_arrow_keys_left_once() {
         let mut app = setup_arrow_key_test_app(400, 200);
-        app.handle_input(KeyCode::Left);
+        app.handle_input(KeyEvent::new(KeyCode::Left, KeyModifiers::empty()));
 
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
@@ -975,7 +1000,7 @@ mod tests {
         let mut app = setup_arrow_key_test_app(400, 200);
 
         for _ in 0..2 {
-            app.handle_input(KeyCode::Left);
+            app.handle_input(KeyEvent::new(KeyCode::Left, KeyModifiers::empty()));
         }
 
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
@@ -989,7 +1014,7 @@ mod tests {
     #[test]
     fn test_arrow_keys_right_once() {
         let mut app = setup_arrow_key_test_app(400, 200);
-        app.handle_input(KeyCode::Right);
+        app.handle_input(KeyEvent::new(KeyCode::Right, KeyModifiers::empty()));
 
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
@@ -1004,7 +1029,7 @@ mod tests {
         let mut app = setup_arrow_key_test_app(400, 200);
 
         for _ in 0..2 {
-            app.handle_input(KeyCode::Right);
+            app.handle_input(KeyEvent::new(KeyCode::Right, KeyModifiers::empty()));
         }
 
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
@@ -1020,9 +1045,9 @@ mod tests {
         let mut app = setup_arrow_key_test_app(400, 200);
 
         for _ in 0..2 {
-            app.handle_input(KeyCode::Right);
+            app.handle_input(KeyEvent::new(KeyCode::Right, KeyModifiers::empty()));
         }
-        app.handle_input(KeyCode::Left);
+        app.handle_input(KeyEvent::new(KeyCode::Left, KeyModifiers::empty()));
 
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
@@ -1035,7 +1060,7 @@ mod tests {
     #[test]
     fn test_arrow_keys_left_at_time_start_does_not_move() {
         let mut app = setup_arrow_key_test_app(0, 200);
-        app.handle_input(KeyCode::Left);
+        app.handle_input(KeyEvent::new(KeyCode::Left, KeyModifiers::empty()));
 
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
@@ -1048,7 +1073,7 @@ mod tests {
     #[test]
     fn test_arrow_keys_right_at_time_end_does_not_move() {
         let mut app = setup_arrow_key_test_app(800, 200);
-        app.handle_input(KeyCode::Right);
+        app.handle_input(KeyEvent::new(KeyCode::Right, KeyModifiers::empty()));
 
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
@@ -1111,7 +1136,7 @@ mod tests {
 
         // Now move down far enough to trigger scrolling
         for _ in 0..10 {
-            app.handle_input(KeyCode::Down);
+            app.handle_input(KeyEvent::new(KeyCode::Down, KeyModifiers::empty()));
         }
 
         // Render again to capture the scrolled state
@@ -1136,12 +1161,12 @@ mod tests {
 
         // Now move down far enough to trigger scrolling
         for _ in 0..10 {
-            app.handle_input(KeyCode::Down);
+            app.handle_input(KeyEvent::new(KeyCode::Down, KeyModifiers::empty()));
         }
 
         // Scroll back up
         for _ in 0..10 {
-            app.handle_input(KeyCode::Up);
+            app.handle_input(KeyEvent::new(KeyCode::Up, KeyModifiers::empty()));
         }
 
         // Render again to capture the scrolled state
