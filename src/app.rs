@@ -600,6 +600,36 @@ mod tests {
     }
 
     #[test]
+    fn test_help_menu_no_scroll() {
+        let mut app = App::with_config(config::AppConfig::default());
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+
+        app.state.mode = AppMode::Command;
+        app.state.show_help = true;
+
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_help_menu_with_scroll() {
+        let mut app = App::with_config(config::AppConfig::default());
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+
+        app.state.mode = AppMode::Command;
+        app.state.show_help = true;
+        app.state.help_menu_scroll = 10;
+
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
     fn test_render_app_with_test_data() {
         use crate::parsers::types::{Value, WaveValue};
         let mut app = App::with_config(config::AppConfig::default());
