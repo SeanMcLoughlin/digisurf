@@ -219,12 +219,7 @@ impl App {
     }
 
     pub fn handle_mouse(&mut self, mouse: MouseEvent) {
-        // Check if click is within waveform area
-        if mouse.column >= self.layout.waveform.x
-            && mouse.column <= self.layout.waveform.right()
-            && mouse.row >= self.layout.waveform.y
-            && mouse.row <= self.layout.waveform.bottom()
-        {
+        if self.mouse_within_rect(&mouse, &self.layout.waveform) {
             // Convert column to coordinates inside waveform area
             let column_in_waveform = mouse.column - self.layout.waveform.x;
 
@@ -298,6 +293,21 @@ impl App {
                     self.state.is_dragging = false;
                 }
                 _ => {}
+            }
+        } else if self.mouse_within_rect(&mouse, &self.layout.signal_list) {
+            // Handle clicking on signal rows in the signal list area
+            if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
+                // Calculate which signal was clicked based on mouse position
+                // Each row in signal list has WAVEFORM_HEIGHT height
+                let row_in_signal_list = mouse.row as usize - self.layout.signal_list.y as usize;
+                let clicked_signal_index =
+                    row_in_signal_list / WAVEFORM_HEIGHT + self.state.signal_scroll_offset;
+
+                // Check if it's a valid signal index
+                if clicked_signal_index < self.state.displayed_signals.len() {
+                    self.state.selected_signal = clicked_signal_index;
+                    self.adjust_scroll_if_needed();
+                }
             }
         } else {
             // Clear drag state if clicked outside the waveform area
@@ -434,6 +444,13 @@ impl App {
         }
     }
 
+    fn mouse_within_rect(&self, mouse: &MouseEvent, rect: &Rect) -> bool {
+        mouse.column >= rect.x
+            && mouse.column <= rect.right()
+            && mouse.row >= rect.y
+            && mouse.row <= rect.bottom()
+    }
+
     fn adjust_scroll_if_needed(&mut self) {
         // Calculate how many signals can be displayed at once
         let visible_signals = self.layout.waveform.height as usize / WAVEFORM_HEIGHT;
@@ -541,11 +558,14 @@ mod tests {
     use crate::{
         command_mode::CommandModeStateAccess,
         config,
+        constants::WAVEFORM_HEIGHT,
         fuzzy_finder::FuzzyFinderStateAccess,
         parsers::types::{Value, WaveValue},
         types::AppMode,
     };
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use crossterm::event::{
+        KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use insta::assert_snapshot;
     use ratatui::{backend::TestBackend, Terminal};
 
@@ -1176,5 +1196,52 @@ mod tests {
 
         // The snapshot assert should capture signals a-f
         assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_mouse_signal_selection() {
+        let mut app = App::with_config(config::AppConfig::default());
+        for i in 0..5 {
+            let signal_name = format!("signal_{}", i);
+            app.state.waveform_data.signals.push(signal_name.clone());
+            let mut signal_values = Vec::new();
+            signal_values.extend(vec![
+                (0, WaveValue::Binary(Value::V0)),
+                (50, WaveValue::Binary(Value::V1)),
+                (100, WaveValue::Binary(Value::V0)),
+            ]);
+
+            app.state
+                .waveform_data
+                .values
+                .insert(signal_name, signal_values);
+        }
+        app.state.displayed_signals = app.state.waveform_data.signals.clone();
+
+        // We need to render the app once to initialize the layout
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| frame.render_widget(&mut app, frame.area()))
+            .unwrap();
+
+        // Create a mouse event for clicking on multiple different signals.
+        // Calculate position (each signal takes WAVEFORM_HEIGHT rows)
+        for signal_index in vec![2, 1, 3, 0] {
+            // +1 to click in middle of signal
+            let y_position = app.layout.signal_list.y + (signal_index * WAVEFORM_HEIGHT) as u16 + 1;
+
+            let mouse_event = MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: app.layout.signal_list.x + 2, // "Near" the beginning of the signal name
+                row: y_position,
+                modifiers: KeyModifiers::empty(),
+            };
+
+            // Handle the mouse event
+            app.handle_mouse(mouse_event);
+
+            // Verify the selection changed
+            assert_eq!(app.state.selected_signal, signal_index);
+        }
     }
 }
