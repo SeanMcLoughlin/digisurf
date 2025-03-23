@@ -1,0 +1,5 @@
+---
+source: src/ui/widgets/marker_names.rs
+expression: terminal.backend()
+---
+"        Marker1             O   Marker2                                         "

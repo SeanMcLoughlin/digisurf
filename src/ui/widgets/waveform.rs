@@ -1,5 +1,8 @@
 use crate::{
-    constants::{DRAG_COLOR, WAVEFORM_HEIGHT},
+    constants::{
+        DEFAULT_SAVED_MARKER_COLOR, DRAG_COLOR, PRIMARY_MARKER_COLOR, SECONDARY_MARKER_COLOR,
+        WAVEFORM_HEIGHT,
+    },
     parsers::types::{Value, WaveValue},
     state::AppState,
 };
@@ -242,8 +245,8 @@ impl WaveformWidget {
         let time_range = state.time_range;
         let width = area.width as f64;
 
-        // Draw primary marker if exists and is visible
-        if let Some(marker_time) = state.primary_marker {
+        // Anonymous helper function to draw a single marker
+        let mut draw_marker = |marker_time: u64, color: Color| {
             if self.is_marker_visible(marker_time, time_start, time_range) {
                 // Calculate x position
                 let x_ratio = (marker_time - time_start) as f64 / time_range as f64;
@@ -260,38 +263,24 @@ impl WaveformWidget {
                             y1: 0.0,
                             x2: x_pos as f64,
                             y2: area.height as f64,
-                            color: Color::Yellow,
+                            color,
                         });
                     });
 
                 marker_line.render(area, buf);
             }
+        };
+
+        if let Some(marker_time) = state.primary_marker {
+            draw_marker(marker_time, PRIMARY_MARKER_COLOR);
         }
 
-        // Draw secondary marker if exists and is visible
         if let Some(marker_time) = state.secondary_marker {
-            if self.is_marker_visible(marker_time, time_start, time_range) {
-                // Calculate x position
-                let x_ratio = (marker_time - time_start) as f64 / time_range as f64;
-                let x_pos = (x_ratio * width).round() as u16;
+            draw_marker(marker_time, SECONDARY_MARKER_COLOR);
+        }
 
-                // Draw vertical line
-                let marker_line = Canvas::default()
-                    .block(Block::default())
-                    .x_bounds([0.0, width])
-                    .y_bounds([0.0, area.height as f64])
-                    .paint(|ctx| {
-                        ctx.draw(&Line {
-                            x1: x_pos as f64,
-                            y1: 0.0,
-                            x2: x_pos as f64,
-                            y2: area.height as f64,
-                            color: Color::White,
-                        });
-                    });
-
-                marker_line.render(area, buf);
-            }
+        for marker in &state.saved_markers {
+            draw_marker(marker.time, DEFAULT_SAVED_MARKER_COLOR);
         }
     }
 

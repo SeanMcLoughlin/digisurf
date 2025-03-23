@@ -1,41 +1,79 @@
 use crate::{
     command_mode::{builder::CommandBuilder, registry::Command},
     state::AppState,
+    types::Marker,
 };
 use std::rc::Rc;
 
 pub fn create() -> Rc<Box<dyn Command<AppState>>> {
     CommandBuilder::new(
         "marker",
-        "Set a marker at a specific time",
+        "Add or remove saved markers with names",
         |args, state: &mut AppState| {
-            if args.len() < 2 {
-                return Err("Usage: marker <number> <time>".to_string());
+            if args.is_empty() {
+                return Err("Usage: marker add <name> [time] or marker remove <name>".to_string());
             }
 
-            if let Ok(marker_num) = args[0].parse::<u8>() {
-                if let Ok(time) = args[1].parse::<u64>() {
-                    if time <= state.waveform_data.max_time {
-                        match marker_num {
-                            1 => {
-                                state.primary_marker = Some(time);
-                                return Ok(format!("Set marker 1 to time {}", time));
-                            }
-                            2 => {
-                                state.secondary_marker = Some(time);
-                                return Ok(format!("Set marker 2 to time {}", time));
-                            }
-                            _ => return Err("Invalid marker number (use 1 or 2)".to_string()),
-                        }
+            let subcommand = &args[0];
+            match &**subcommand {
+                "add" | "a" => {
+                    if args.len() < 2 {
+                        return Err(format!("Usage: marker {} <name> [time]", &**subcommand));
                     }
-                    return Err(format!(
-                        "Time out of range (0-{})",
-                        state.waveform_data.max_time
-                    ));
+
+                    let name = args[1];
+
+                    // If time was provided, use it. Otherwise, use the primary marker.
+                    let time = if args.len() >= 3 {
+                        match args[2].parse::<u64>() {
+                            Ok(t) => {
+                                if t > state.waveform_data.max_time {
+                                    return Err(format!(
+                                        "Time out of range (0-{})",
+                                        state.waveform_data.max_time
+                                    ));
+                                }
+                                t
+                            }
+                            Err(_) => return Err("Invalid time format".to_string()),
+                        }
+                    } else {
+                        match state.primary_marker {
+                            Some(t) => t,
+                            None => {
+                                return Err(
+                                    "No time specified and primary marker not set".to_string()
+                                )
+                            }
+                        }
+                    };
+
+                    // Create and add marker
+                    let marker = Marker {
+                        time,
+                        name: name.to_string(),
+                    };
+                    state.saved_markers.push(marker);
+                    Ok(format!("Added marker '{}' at time {}", name, time))
                 }
-                return Err("Invalid time format".to_string());
+                "remove" | "rm" => {
+                    if args.len() < 2 {
+                        return Err(format!("Usage: marker {} <name>", &**subcommand));
+                    }
+
+                    let name = &args[1];
+                    if let Some(index) = state.saved_markers.iter().position(|m| &m.name == name) {
+                        let marker = state.saved_markers.remove(index);
+                        Ok(format!(
+                            "Removed marker '{}' at time {}",
+                            marker.name, marker.time
+                        ))
+                    } else {
+                        Err(format!("No marker found with name '{}'", name))
+                    }
+                }
+                _ => Err("Unknown subcommand. Use 'add' or 'remove'".to_string()),
             }
-            Err("Invalid marker number format".to_string())
         },
     )
     .alias("m")
@@ -45,6 +83,7 @@ pub fn create() -> Rc<Box<dyn Command<AppState>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::Marker;
 
     fn get_state() -> AppState {
         let mut state = AppState::default();
@@ -53,43 +92,67 @@ mod tests {
     }
 
     #[test]
-    fn test_marker_too_few_args_is_err() {
+    fn test_marker_no_args_is_err() {
         let command = create();
         let mut state = get_state();
-        let result = command.execute(&["1"], &mut state);
+        let result = command.execute(&[], &mut state);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
-            "Usage: marker <number> <time>".to_string()
+            "Usage: marker add <name> [time] or marker remove <name>".to_string()
         );
     }
 
     #[test]
-    fn test_marker_invalid_marker_number_is_err() {
+    fn test_marker_invalid_subcommand_is_err() {
         let command = create();
         let mut state = get_state();
-        let result = command.execute(&["not_a_number", "500"], &mut state);
+        let result = command.execute(&["invalid", "mymarker"], &mut state);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
-            "Invalid marker number format".to_string()
+            "Unknown subcommand. Use 'add' or 'remove'".to_string()
         );
     }
 
     #[test]
-    fn test_marker_invalid_time_is_err() {
+    fn test_marker_add_missing_name_is_err() {
         let command = create();
         let mut state = get_state();
-        let result = command.execute(&["1", "not_a_number"], &mut state);
+        let result = command.execute(&["add"], &mut state);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Usage: marker add <name> [time]".to_string()
+        );
+    }
+
+    #[test]
+    fn test_marker_remove_missing_name_is_err() {
+        let command = create();
+        let mut state = get_state();
+        let result = command.execute(&["remove"], &mut state);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Usage: marker remove <name>".to_string()
+        );
+    }
+
+    #[test]
+    fn test_marker_add_invalid_time_is_err() {
+        let command = create();
+        let mut state = get_state();
+        let result = command.execute(&["add", "mymarker", "not_a_number"], &mut state);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "Invalid time format".to_string());
     }
 
     #[test]
-    fn test_marker_time_out_of_range_is_err() {
+    fn test_marker_add_time_out_of_range_is_err() {
         let command = create();
         let mut state = get_state();
-        let result = command.execute(&["1", "2000"], &mut state);
+        let result = command.execute(&["add", "mymarker", "2000"], &mut state);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -98,34 +161,86 @@ mod tests {
     }
 
     #[test]
-    fn test_marker_invalid_marker_number_range_is_err() {
+    fn test_marker_add_success_with_explicit_time() {
         let command = create();
         let mut state = get_state();
-        let result = command.execute(&["3", "500"], &mut state);
+        let result = command.execute(&["add", "mymarker", "500"], &mut state);
+        assert!(result.is_ok());
+        assert_eq!(
+            result.unwrap(),
+            "Added marker 'mymarker' at time 500".to_string()
+        );
+
+        let marker = state
+            .saved_markers
+            .iter()
+            .find(|m| m.name == "mymarker")
+            .unwrap();
+        assert_eq!(marker.time, 500);
+    }
+
+    #[test]
+    fn test_marker_add_success_with_primary_marker() {
+        let command = create();
+        let mut state = get_state();
+        state.primary_marker = Some(300);
+
+        let result = command.execute(&["add", "mymarker"], &mut state);
+        assert!(result.is_ok());
+        assert_eq!(
+            result.unwrap(),
+            "Added marker 'mymarker' at time 300".to_string()
+        );
+
+        let marker = state
+            .saved_markers
+            .iter()
+            .find(|m| m.name == "mymarker")
+            .unwrap();
+        assert_eq!(marker.time, 300);
+    }
+
+    #[test]
+    fn test_marker_add_no_primary_marker_is_err() {
+        let command = create();
+        let mut state = get_state();
+        state.primary_marker = None;
+
+        let result = command.execute(&["add", "mymarker"], &mut state);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
-            "Invalid marker number (use 1 or 2)".to_string()
+            "No time specified and primary marker not set".to_string()
         );
     }
 
     #[test]
-    fn test_marker_set_primary() {
+    fn test_marker_remove_nonexistent_is_err() {
         let command = create();
         let mut state = get_state();
-        let result = command.execute(&["1", "500"], &mut state);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "Set marker 1 to time 500".to_string());
-        assert_eq!(state.primary_marker, Some(500));
+        let result = command.execute(&["remove", "mymarker"], &mut state);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "No marker found with name 'mymarker'".to_string()
+        );
     }
 
     #[test]
-    fn test_marker_set_secondary() {
+    fn test_marker_remove_success() {
         let command = create();
         let mut state = get_state();
-        let result = command.execute(&["2", "750"], &mut state);
+        state.saved_markers.push(Marker {
+            time: 500,
+            name: "mymarker".to_string(),
+        });
+
+        let result = command.execute(&["remove", "mymarker"], &mut state);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "Set marker 2 to time 750".to_string());
-        assert_eq!(state.secondary_marker, Some(750));
+        assert_eq!(
+            result.unwrap(),
+            "Removed marker 'mymarker' at time 500".to_string()
+        );
+        assert!(state.saved_markers.is_empty());
     }
 }

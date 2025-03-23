@@ -5,3 +5,9 @@ pub enum AppMode {
     Command,
     FuzzyFinder,
 }
+
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
+pub struct Marker {
+    pub time: u64,
+    pub name: String,
+}

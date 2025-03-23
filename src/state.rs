@@ -3,7 +3,7 @@ use crate::{
     config,
     fuzzy_finder::{state::FuzzyFinderState, FuzzyFinderStateAccess},
     parsers::types::{WaveValue, WaveformData},
-    types::AppMode,
+    types::{AppMode, Marker},
 };
 use std::collections::HashSet;
 
@@ -35,6 +35,9 @@ pub struct AppState {
 
     /// Secondary marker position in time step units.
     pub secondary_marker: Option<u64>,
+
+    /// Saved marker positions in time step units.
+    pub saved_markers: Vec<Marker>,
 
     /// Is Some(Screen X coordinate, Time Step) if starting dragging for zoom selection
     pub drag_start: Option<(u16, u64)>,

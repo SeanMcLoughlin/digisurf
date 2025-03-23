@@ -10,8 +10,8 @@ use crate::{
         layout::{create_layout, AppLayout},
         widgets::{
             bottom_text_box::BottomTextBoxWidget, fuzzy_finder::FuzzyFinderWidget,
-            help_menu::HelpMenuWidget, signal_list::SignalListWidget, title_bar::TitleBarWidget,
-            waveform::WaveformWidget,
+            help_menu::HelpMenuWidget, marker_names::MarkerNamesWidget,
+            signal_list::SignalListWidget, title_bar::TitleBarWidget, waveform::WaveformWidget,
         },
     },
 };
@@ -33,6 +33,7 @@ pub struct App {
     pub signal_list: SignalListWidget,
     pub help_menu: HelpMenuWidget,
     pub waveform: WaveformWidget,
+    pub marker_names: MarkerNamesWidget,
     pub title_bar: TitleBarWidget,
     pub command_input: BottomTextBoxWidget,
     pub command_mode: CommandModeWidget<AppState>,
@@ -48,6 +49,7 @@ impl Default for App {
             signal_list: SignalListWidget::default(),
             help_menu: HelpMenuWidget::default(),
             waveform: WaveformWidget::default(),
+            marker_names: MarkerNamesWidget::default(),
             title_bar: TitleBarWidget::default(),
             command_input: BottomTextBoxWidget::default(),
             command_mode: CommandModeWidget::new(),
@@ -516,11 +518,12 @@ impl Widget for &mut App {
             return; // Don't render the rest of the UI when fuzzy finder is shown
         }
 
-        // Regular UI rendering - only show signals that are in displayed_signals
         self.signal_list
             .render(self.layout.signal_list, buf, &mut self.state);
         self.waveform
             .render(self.layout.waveform, buf, &mut self.state);
+        self.marker_names
+            .render(self.layout.marker_names, buf, &mut self.state);
         self.title_bar
             .render(self.layout.title, buf, &mut self.state);
         self.command_input
