@@ -11,7 +11,7 @@ use crate::{
         widgets::{
             bottom_text_box::BottomTextBoxWidget, fuzzy_finder::FuzzyFinderWidget,
             help_menu::HelpMenuWidget, marker_names::MarkerNamesWidget,
-            signal_list::SignalListWidget, title_bar::TitleBarWidget, waveform::WaveformWidget,
+            signal_list::SignalListWidget, time_ruler::TimeRulerWidget, waveform::WaveformWidget,
         },
     },
 };
@@ -34,7 +34,7 @@ pub struct App {
     pub help_menu: HelpMenuWidget,
     pub waveform: WaveformWidget,
     pub marker_names: MarkerNamesWidget,
-    pub title_bar: TitleBarWidget,
+    pub time_ruler: TimeRulerWidget,
     pub command_input: BottomTextBoxWidget,
     pub command_mode: CommandModeWidget<AppState>,
     pub fuzzy_finder: FuzzyFinderWidget,
@@ -50,7 +50,7 @@ impl Default for App {
             help_menu: HelpMenuWidget::default(),
             waveform: WaveformWidget::default(),
             marker_names: MarkerNamesWidget::default(),
-            title_bar: TitleBarWidget::default(),
+            time_ruler: TimeRulerWidget::default(),
             command_input: BottomTextBoxWidget::default(),
             command_mode: CommandModeWidget::new(),
             fuzzy_finder: FuzzyFinderWidget::default(),
@@ -524,8 +524,8 @@ impl Widget for &mut App {
             .render(self.layout.waveform, buf, &mut self.state);
         self.marker_names
             .render(self.layout.marker_names, buf, &mut self.state);
-        self.title_bar
-            .render(self.layout.title, buf, &mut self.state);
+        self.time_ruler
+            .render(self.layout.time_ruler, buf, &mut self.state);
         self.command_input
             .render(self.layout.command_bar, buf, &mut self.state);
 

@@ -9,74 +9,95 @@ pub fn create() -> Rc<Box<dyn Command<AppState>>> {
     CommandBuilder::new(
         "marker",
         "Add or remove saved markers with names",
-        |args, state: &mut AppState| {
+        move |args, state: &mut AppState| {
             if args.is_empty() {
                 return Err("Usage: marker add <name> [time] or marker remove <name>".to_string());
             }
 
             let subcommand = &args[0];
             match &**subcommand {
-                "add" | "a" => {
-                    if args.len() < 2 {
-                        return Err(format!("Usage: marker {} <name> [time]", &**subcommand));
-                    }
-
-                    let name = args[1];
-
-                    // If time was provided, use it. Otherwise, use the primary marker.
-                    let time = if args.len() >= 3 {
-                        match args[2].parse::<u64>() {
-                            Ok(t) => {
-                                if t > state.waveform_data.max_time {
-                                    return Err(format!(
-                                        "Time out of range (0-{})",
-                                        state.waveform_data.max_time
-                                    ));
-                                }
-                                t
-                            }
-                            Err(_) => return Err("Invalid time format".to_string()),
-                        }
-                    } else {
-                        match state.primary_marker {
-                            Some(t) => t,
-                            None => {
-                                return Err(
-                                    "No time specified and primary marker not set".to_string()
-                                )
-                            }
-                        }
-                    };
-
-                    // Create and add marker
-                    let marker = Marker {
-                        time,
-                        name: name.to_string(),
-                    };
-                    state.saved_markers.push(marker);
-                    Ok(format!("Added marker '{}' at time {}", name, time))
-                }
-                "remove" | "rm" => {
-                    if args.len() < 2 {
-                        return Err(format!("Usage: marker {} <name>", &**subcommand));
-                    }
-
-                    let name = &args[1];
-                    if let Some(index) = state.saved_markers.iter().position(|m| &m.name == name) {
-                        let marker = state.saved_markers.remove(index);
-                        Ok(format!(
-                            "Removed marker '{}' at time {}",
-                            marker.name, marker.time
-                        ))
-                    } else {
-                        Err(format!("No marker found with name '{}'", name))
-                    }
-                }
+                "add" | "a" => add_subcommand().execute(&args[1..], state),
+                "remove" | "rm" => remove_subcommand().execute(&args[1..], state),
                 _ => Err("Unknown subcommand. Use 'add' or 'remove'".to_string()),
             }
         },
     )
     .alias("m")
+    .build()
+}
+
+fn add_subcommand() -> Rc<Box<dyn Command<AppState>>> {
+    CommandBuilder::new(
+        "add",
+        "Add a saved marker with a name",
+        move |args, state: &mut AppState| {
+            if args.is_empty() {
+                return Err("Usage: marker add <name> [time]".to_string());
+            }
+
+            let name = args[0];
+
+            // If time was provided, use it. Otherwise, use the primary marker.
+            let time = if args.len() >= 2 {
+                match args[1].parse::<u64>() {
+                    Ok(t) => {
+                        if t > state.waveform_data.max_time {
+                            return Err(format!(
+                                "Time out of range (0-{})",
+                                state.waveform_data.max_time
+                            ));
+                        }
+                        t
+                    }
+                    Err(_) => return Err("Invalid time format".to_string()),
+                }
+            } else {
+                match state.primary_marker {
+                    Some(t) => t,
+                    None => return Err("No time specified and primary marker not set".to_string()),
+                }
+            };
+
+            // Check for existing marker with the same name
+            if state.saved_markers.iter().any(|m| m.name == name) {
+                return Err(format!("Marker '{}' already exists", name));
+            }
+
+            // Create and add marker
+            let marker = Marker {
+                time,
+                name: name.to_string(),
+            };
+            state.saved_markers.push(marker);
+            Ok(format!("Added marker '{}' at time {}", name, time))
+        },
+    )
+    .alias("a")
+    .build()
+}
+
+fn remove_subcommand() -> Rc<Box<dyn Command<AppState>>> {
+    CommandBuilder::new(
+        "remove",
+        "Remove a saved marker by name",
+        move |args, state: &mut AppState| {
+            if args.is_empty() {
+                return Err("Usage: marker remove <name>".to_string());
+            }
+
+            let name = &args[0];
+            if let Some(index) = state.saved_markers.iter().position(|m| &m.name == name) {
+                let marker = state.saved_markers.remove(index);
+                Ok(format!(
+                    "Removed marker '{}' at time {}",
+                    marker.name, marker.time
+                ))
+            } else {
+                Err(format!("No marker found with name '{}'", name))
+            }
+        },
+    )
+    .alias("rm")
     .build()
 }
 
@@ -242,5 +263,22 @@ mod tests {
             "Removed marker 'mymarker' at time 500".to_string()
         );
         assert!(state.saved_markers.is_empty());
+    }
+
+    #[test]
+    fn test_marker_add_duplicate_is_err() {
+        let command = create();
+        let mut state = get_state();
+        state.saved_markers.push(Marker {
+            time: 500,
+            name: "mymarker".to_string(),
+        });
+
+        let result = command.execute(&["add", "mymarker", "500"], &mut state);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Marker 'mymarker' already exists".to_string()
+        );
     }
 }

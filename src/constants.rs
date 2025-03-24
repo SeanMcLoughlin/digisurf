@@ -15,8 +15,11 @@ pub const DRAG_COLOR: ratatui::style::Color = ratatui::style::Color::Rgb(100, 15
 /// The height of a single wave line in terminal rows.
 pub const WAVEFORM_HEIGHT: usize = 2;
 
+/// The color of the primary marker.
 pub const PRIMARY_MARKER_COLOR: ratatui::style::Color = ratatui::style::Color::Yellow;
 
+/// The color of the secondary marker.
 pub const SECONDARY_MARKER_COLOR: ratatui::style::Color = ratatui::style::Color::White;
 
+/// The color of the default saved marker.
 pub const DEFAULT_SAVED_MARKER_COLOR: ratatui::style::Color = ratatui::style::Color::Cyan;
