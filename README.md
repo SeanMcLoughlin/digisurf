@@ -5,6 +5,8 @@
 
 ⚠️ **ALPHA SOFTWARE WARNING**: DigiSurf is currently in alpha stage. Expect bugs, incomplete features, and potential breaking changes between versions. Use at your own risk.
 
+![README example](resources/readme_example.png)
+
 DigiSurf is a terminal-based UI application for viewing and analyzing digital signal waveforms. It provides an intuitive interface for navigating through waveform data, placing markers, measuring timing, and examining signal values.
 
 ## Features
