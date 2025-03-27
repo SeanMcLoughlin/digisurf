@@ -1,6 +1,6 @@
 use ratatui::{buffer::Buffer, layout::Rect, widgets::StatefulWidget};
 
-use crate::{constants::DEFAULT_SAVED_MARKER_COLOR, state::AppState};
+use crate::state::AppState;
 
 #[derive(Default, Copy, Clone)]
 pub struct MarkerNamesWidget {}
@@ -33,7 +33,7 @@ impl MarkerNamesWidget {
             // Only consider markers that start within the visible area
             if x_pos < area.width {
                 let marker_pos = area.x + x_pos;
-                let marker_style = ratatui::style::Style::default().fg(DEFAULT_SAVED_MARKER_COLOR);
+                let marker_style = ratatui::style::Style::default().fg(marker.color);
                 marker_displays.push((marker_pos, marker.name.clone(), marker_style));
             }
         }
@@ -119,15 +119,13 @@ mod tests {
         state.time_range = 100;
 
         // Add some markers at different positions
-        state.saved_markers.push(Marker {
-            time: 10,
-            name: "Marker1".to_string(),
-        });
+        state
+            .saved_markers
+            .push(Marker::new(10, "Marker1".to_string()));
 
-        state.saved_markers.push(Marker {
-            time: 40,
-            name: "Marker2".to_string(),
-        });
+        state
+            .saved_markers
+            .push(Marker::new(40, "Marker2".to_string()));
 
         state
     }
@@ -159,10 +157,9 @@ mod tests {
 
         // Add overlapping marker for the leftmost marker.
         // The leftmost marker should be reduced to a single character 'M'
-        state.saved_markers.push(Marker {
-            time: 15,
-            name: "Overlap".to_string(),
-        });
+        state
+            .saved_markers
+            .push(Marker::new(15, "Overlap".to_string()));
 
         let backend = TestBackend::new(80, 1);
         let mut terminal = Terminal::new(backend).unwrap();
@@ -185,10 +182,9 @@ mod tests {
 
         // Add overlapping marker for the rightmost marker.
         // This added marker should be reduced to a single character 'O'
-        state.saved_markers.push(Marker {
-            time: 35,
-            name: "Overlap".to_string(),
-        });
+        state
+            .saved_markers
+            .push(Marker::new(35, "Overlap".to_string()));
 
         let backend = TestBackend::new(80, 1);
         let mut terminal = Terminal::new(backend).unwrap();
@@ -212,10 +208,10 @@ mod tests {
         // Add overlapping marker starting at the leftmost marker, but make the name of this
         // marker long enough so it overlaps with the rightmost marker, too.
         // The two leftmost markers should be reduced to "M" and "O"
-        state.saved_markers.push(Marker {
-            time: 15,
-            name: "OverlapOverlapOverlapOverlapOverlap".to_string(),
-        });
+        state.saved_markers.push(Marker::new(
+            15,
+            "OverlapOverlapOverlapOverlapOverlap".to_string(),
+        ));
 
         let backend = TestBackend::new(80, 1);
         let mut terminal = Terminal::new(backend).unwrap();

@@ -1,8 +1,5 @@
 use crate::{
-    constants::{
-        DEFAULT_SAVED_MARKER_COLOR, DRAG_COLOR, PRIMARY_MARKER_COLOR, SECONDARY_MARKER_COLOR,
-        WAVEFORM_HEIGHT,
-    },
+    constants::{DRAG_COLOR, PRIMARY_MARKER_COLOR, SECONDARY_MARKER_COLOR, WAVEFORM_HEIGHT},
     parsers::types::{Value, WaveValue},
     state::AppState,
 };
@@ -280,7 +277,7 @@ impl WaveformWidget {
         }
 
         for marker in &state.saved_markers {
-            draw_marker(marker.time, DEFAULT_SAVED_MARKER_COLOR);
+            draw_marker(marker.time, marker.color);
         }
     }
 

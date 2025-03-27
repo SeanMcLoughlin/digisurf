@@ -18,7 +18,8 @@ pub fn create() -> Rc<Box<dyn Command<AppState>>> {
             match &**subcommand {
                 "add" | "a" => add_subcommand().execute(&args[1..], state),
                 "remove" | "rm" => remove_subcommand().execute(&args[1..], state),
-                _ => Err("Unknown subcommand. Use 'add' or 'remove'".to_string()),
+                "color" | "c" => color_subcommand().execute(&args[1..], state),
+                _ => Err("Unknown subcommand.".to_string()),
             }
         },
     )
@@ -67,6 +68,7 @@ fn add_subcommand() -> Rc<Box<dyn Command<AppState>>> {
             let marker = Marker {
                 time,
                 name: name.to_string(),
+                color: crate::constants::DEFAULT_SAVED_MARKER_COLOR,
             };
             state.saved_markers.push(marker);
             Ok(format!("Added marker '{}' at time {}", name, time))
@@ -101,6 +103,42 @@ fn remove_subcommand() -> Rc<Box<dyn Command<AppState>>> {
     .build()
 }
 
+fn color_subcommand() -> Rc<Box<dyn Command<AppState>>> {
+    CommandBuilder::new(
+        "color",
+        "Set color attribute of a saved marker by name",
+        move |args, state: &mut AppState| {
+            if args.len() < 2 {
+                return Err("Usage: marker color <name> <color>".to_string());
+            }
+
+            let name = &args[0];
+            let color_str = &args[1];
+
+            let color = match color_str.to_lowercase().parse::<ratatui::style::Color>() {
+                Ok(c) => c,
+                Err(_) => {
+                    return Err(format!(
+                        "Unknown color: {}. Only ANSI colors are supported.",
+                        color_str
+                    ))
+                }
+            };
+
+            // Find the marker with the given name
+            if let Some(marker) = state.saved_markers.iter_mut().find(|m| &m.name == name) {
+                // Set the color attribute
+                marker.color = color;
+                Ok(format!("Set color of marker '{}' to '{}'", name, color_str))
+            } else {
+                Err(format!("No marker found with name '{}'", name))
+            }
+        },
+    )
+    .alias("c")
+    .build()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,10 +168,7 @@ mod tests {
         let mut state = get_state();
         let result = command.execute(&["invalid", "mymarker"], &mut state);
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            "Unknown subcommand. Use 'add' or 'remove'".to_string()
-        );
+        assert_eq!(result.unwrap_err(), "Unknown subcommand.".to_string());
     }
 
     #[test]
@@ -251,10 +286,9 @@ mod tests {
     fn test_marker_remove_success() {
         let command = create();
         let mut state = get_state();
-        state.saved_markers.push(Marker {
-            time: 500,
-            name: "mymarker".to_string(),
-        });
+        state
+            .saved_markers
+            .push(Marker::new(500, "mymarker".to_string()));
 
         let result = command.execute(&["remove", "mymarker"], &mut state);
         assert!(result.is_ok());
@@ -269,16 +303,54 @@ mod tests {
     fn test_marker_add_duplicate_is_err() {
         let command = create();
         let mut state = get_state();
-        state.saved_markers.push(Marker {
-            time: 500,
-            name: "mymarker".to_string(),
-        });
+        state
+            .saved_markers
+            .push(Marker::new(500, "mymarker".to_string()));
 
         let result = command.execute(&["add", "mymarker", "500"], &mut state);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
             "Marker 'mymarker' already exists".to_string()
+        );
+    }
+
+    #[test]
+    fn test_marker_color_success() {
+        let command = create();
+        let mut state = get_state();
+        state
+            .saved_markers
+            .push(Marker::new(500, "mymarker".to_string()));
+
+        let result = command.execute(&["color", "mymarker", "blue"], &mut state);
+        assert!(result.is_ok());
+        assert_eq!(
+            result.unwrap(),
+            "Set color of marker 'mymarker' to 'blue'".to_string()
+        );
+
+        let marker = state
+            .saved_markers
+            .iter()
+            .find(|m| m.name == "mymarker")
+            .unwrap();
+        assert_eq!(marker.color, ratatui::style::Color::Blue);
+    }
+
+    #[test]
+    fn test_marker_color_invalid_is_err() {
+        let command = create();
+        let mut state = get_state();
+        state
+            .saved_markers
+            .push(Marker::new(500, "mymarker".to_string()));
+
+        let result = command.execute(&["color", "mymarker", "not_a_color"], &mut state);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Unknown color: not_a_color. Only ANSI colors are supported.".to_string()
         );
     }
 }
